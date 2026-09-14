@@ -1,13 +1,45 @@
 import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { initialData } from "@/lib/kanban";
+
+const mockApi = async (page: Page) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({ status: 401, json: { detail: "Not authenticated" } })
+  );
+  await page.route("**/api/auth/login", (route) =>
+    route.fulfill({ status: 200, json: { username: "user" } })
+  );
+  await page.route("**/api/auth/logout", (route) =>
+    route.fulfill({ status: 200, json: { status: "ok" } })
+  );
+  await page.route("**/api/board", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ status: 200, json: initialData });
+      return;
+    }
+    await route.fulfill({ status: 200, json: JSON.parse(route.request().postData() ?? "{}") });
+  });
+};
+
+const signIn = async (page: Page) => {
+  await page.getByLabel("Username").fill("user");
+  await page.getByLabel("Password").fill("password");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("heading", { name: "Kanban Studio", exact: true })).toBeVisible();
+};
 
 test("loads the kanban board", async ({ page }) => {
+  await mockApi(page);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Kanban Studio" })).toBeVisible();
+  await signIn(page);
+  await expect(page.getByRole("heading", { name: "Kanban Studio", exact: true })).toBeVisible();
   await expect(page.locator('[data-testid^="column-"]')).toHaveCount(5);
 });
 
 test("adds a card to a column", async ({ page }) => {
+  await mockApi(page);
   await page.goto("/");
+  await signIn(page);
   const firstColumn = page.locator('[data-testid^="column-"]').first();
   await firstColumn.getByRole("button", { name: /add a card/i }).click();
   await firstColumn.getByPlaceholder("Card title").fill("Playwright card");
@@ -17,7 +49,9 @@ test("adds a card to a column", async ({ page }) => {
 });
 
 test("moves a card between columns", async ({ page }) => {
+  await mockApi(page);
   await page.goto("/");
+  await signIn(page);
   const card = page.getByTestId("card-card-1");
   const targetColumn = page.getByTestId("column-col-review");
   const cardBox = await card.boundingBox();

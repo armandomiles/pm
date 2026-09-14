@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { KanbanBoard } from "@/components/KanbanBoard";
+import { initialData } from "@/lib/kanban";
 
 const getFirstColumn = () => screen.getAllByTestId(/column-/i)[0];
 
@@ -42,5 +43,22 @@ describe("KanbanBoard", () => {
     await userEvent.click(deleteButton);
 
     expect(within(column).queryByText("New card")).not.toBeInTheDocument();
+  });
+
+  it("loads and saves the board through the API", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => initialData })
+      .mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<KanbanBoard onLogout={vi.fn()} />);
+    const column = await screen.findByDisplayValue("Backlog");
+    await userEvent.clear(column);
+    await userEvent.type(column, "Queued");
+
+    const saveCalls = fetchMock.mock.calls.filter(([, options]) => options?.method === "PUT");
+    const saveCall = saveCalls.at(-1);
+    expect(saveCall?.[0]).toBe("/api/board");
+    expect(JSON.parse(saveCall?.[1].body).columns[0].title).toBe("Queued");
   });
 });
