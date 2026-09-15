@@ -61,4 +61,21 @@ describe("KanbanBoard", () => {
     expect(saveCall?.[0]).toBe("/api/board");
     expect(JSON.parse(saveCall?.[1].body).columns[0].title).toBe("Queued");
   });
+
+  it("reverts the optimistic update and shows an error when saving fails", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => initialData })
+      .mockResolvedValue({ ok: false });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<KanbanBoard onLogout={vi.fn()} />);
+    await screen.findByDisplayValue("Backlog");
+    const column = getFirstColumn();
+    await userEvent.click(within(column).getByRole("button", { name: /add a card/i }));
+    await userEvent.type(within(column).getByPlaceholderText(/card title/i), "New card");
+    await userEvent.click(within(column).getByRole("button", { name: /add card/i }));
+
+    expect(await screen.findByText("Unable to save the board.")).toBeInTheDocument();
+    expect(within(column).queryByText("New card")).not.toBeInTheDocument();
+  });
 });

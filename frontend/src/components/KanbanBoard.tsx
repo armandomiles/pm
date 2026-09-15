@@ -44,6 +44,7 @@ export const KanbanBoard = ({ onLogout }: KanbanBoardProps) => {
   }, [isApiMode]);
 
   const updateBoard = (nextBoard: BoardData) => {
+    const previousBoard = board;
     setBoard(nextBoard);
     if (!isApiMode) {
       return;
@@ -58,8 +59,12 @@ export const KanbanBoard = ({ onLogout }: KanbanBoardProps) => {
     }).then((response) => {
       if (!response.ok) {
         setSaveError("Unable to save the board.");
+        setBoard(previousBoard);
       }
-    }).catch(() => setSaveError("Unable to save the board."));
+    }).catch(() => {
+      setSaveError("Unable to save the board.");
+      setBoard(previousBoard);
+    });
   };
 
   const sensors = useSensors(

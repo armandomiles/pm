@@ -75,6 +75,23 @@ def require_session(session: str | None) -> str:
     return session
 
 
+def strict_json_schema(schema: dict) -> dict:
+    """Make a Pydantic-generated schema satisfy OpenAI-style strict structured outputs,
+    which require every property to be listed as required (optionality is expressed via
+    a nullable type) and every object to set additionalProperties: false."""
+    if schema.get("type") == "object" and "properties" in schema:
+        schema["required"] = list(schema["properties"])
+        schema.setdefault("additionalProperties", False)
+    for value in schema.values():
+        if isinstance(value, dict):
+            strict_json_schema(value)
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    strict_json_schema(item)
+    return schema
+
+
 @app.get("/api/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
@@ -172,7 +189,7 @@ def ai_chat(
         "json_schema": {
             "name": "kanban_assistant_response",
             "strict": True,
-            "schema": ChatResponse.model_json_schema(by_alias=True),
+            "schema": strict_json_schema(ChatResponse.model_json_schema(by_alias=True)),
         },
     }
     try:
@@ -190,7 +207,12 @@ def ai_chat(
         raise HTTPException(status_code=502, detail="OpenRouter returned invalid structured output") from error
 
     if chat_response.board is not None:
-        save_board(DEFAULT_USER_ID, chat_response.board)
+        if load_board(DEFAULT_USER_ID, DEFAULT_BOARD) != board:
+            # The board changed while the AI request was in flight; discard this
+            # update rather than silently overwriting the newer, concurrent change.
+            chat_response = chat_response.model_copy(update={"board": None})
+        else:
+            save_board(DEFAULT_USER_ID, chat_response.board)
     return chat_response
 
 

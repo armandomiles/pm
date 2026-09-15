@@ -2,7 +2,7 @@ import json
 
 from fastapi.testclient import TestClient
 
-from app.main import active_sessions, app
+from app.main import ChatResponse, active_sessions, app, strict_json_schema
 
 
 client = TestClient(app)
@@ -69,3 +69,39 @@ def test_chat_rejects_invalid_structured_output(monkeypatch) -> None:
     )
 
     assert client.post("/api/ai/chat", json={"question": "Bad", "history": []}).status_code == 502
+
+
+def test_chat_discards_board_update_that_raced_a_concurrent_save(monkeypatch) -> None:
+    sign_in()
+    board = client.get("/api/board").json()
+    stale_board_update = dict(board)
+    stale_board_update["columns"][0]["title"] = "From AI"
+
+    def fake_chat(messages, response_format):
+        # Simulate a manual edit landing while the AI request is in flight.
+        concurrent_board = client.get("/api/board").json()
+        concurrent_board["columns"][0]["title"] = "Manual edit"
+        client.put("/api/board", json=concurrent_board)
+        return {
+            "choices": [
+                {"message": {"content": json.dumps({"response": "Moved it", "board": stale_board_update})}}
+            ]
+        }
+
+    monkeypatch.setattr("app.main.openrouter_chat", fake_chat)
+
+    response = client.post("/api/ai/chat", json={"question": "Move it", "history": []})
+
+    assert response.status_code == 200
+    assert response.json()["board"] is None
+    assert client.get("/api/board").json()["columns"][0]["title"] == "Manual edit"
+
+
+def test_strict_json_schema_marks_every_property_required() -> None:
+    schema = strict_json_schema(ChatResponse.model_json_schema(by_alias=True))
+
+    assert schema["required"] == ["response", "board"]
+    assert schema["additionalProperties"] is False
+    board_schema = schema["$defs"]["Board"]
+    assert board_schema["required"] == ["columns", "cards"]
+    assert board_schema["additionalProperties"] is False

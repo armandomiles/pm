@@ -2,7 +2,6 @@ import sqlite3
 
 from fastapi.testclient import TestClient
 
-from app.database import database_path
 from app.main import active_sessions, app
 
 
@@ -11,7 +10,6 @@ client = TestClient(app)
 
 def setup_function() -> None:
     active_sessions.clear()
-    database_path().unlink(missing_ok=True)
 
 
 def sign_in() -> None:
