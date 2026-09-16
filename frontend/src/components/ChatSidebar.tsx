@@ -54,7 +54,7 @@ export const ChatSidebar = ({ onBoardUpdate }: ChatSidebarProps) => {
   };
 
   return (
-    <aside className="fixed bottom-0 right-0 top-0 z-10 flex w-full max-w-[360px] flex-col border-l border-[var(--stroke)] bg-[var(--navy-dark)] p-6 text-white shadow-[-16px_0_40px_rgba(3,33,71,0.14)]">
+    <aside className="fixed bottom-0 right-0 top-0 z-10 flex w-full max-w-[330px] flex-col border-l border-[var(--stroke)] bg-[var(--navy-dark)] p-6 text-white shadow-[-16px_0_40px_rgba(3,33,71,0.14)]">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--accent-yellow)]">
           Board assistant
