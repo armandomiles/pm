@@ -13,8 +13,18 @@ import {
 } from "@dnd-kit/core";
 import { KanbanColumn } from "@/components/KanbanColumn";
 import { KanbanCardPreview } from "@/components/KanbanCardPreview";
+import { BoardFilterBar } from "@/components/BoardFilterBar";
 import { ChatSidebar } from "@/components/ChatSidebar";
-import { createId, initialData, moveCard, type BoardData, type CardPriority } from "@/lib/kanban";
+import {
+  createId,
+  defaultCardFilter,
+  initialData,
+  matchesCardFilter,
+  moveCard,
+  type BoardData,
+  type CardFilter,
+  type CardPriority,
+} from "@/lib/kanban";
 import type { CardEdits } from "@/components/KanbanCard";
 
 type KanbanBoardProps = {
@@ -30,6 +40,7 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(isApiMode);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<CardFilter>(defaultCardFilter);
 
   useEffect(() => {
     if (!isApiMode) {
@@ -156,6 +167,8 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
   };
 
   const activeCard = activeCardId ? cardsById[activeCardId] : null;
+  const allCards = Object.values(board.cards);
+  const matchCount = allCards.filter((card) => matchesCardFilter(card, filter)).length;
 
   if (isLoading) {
     return <main className="flex min-h-screen items-center justify-center text-sm text-[var(--gray-text)]">Loading board...</main>;
@@ -212,6 +225,13 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
           </div>
         </header>
 
+        <BoardFilterBar
+          filter={filter}
+          onChange={setFilter}
+          matchCount={matchCount}
+          totalCount={allCards.length}
+        />
+
         <DndContext
           sensors={sensors}
           collisionDetection={closestCorners}
@@ -223,7 +243,10 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
               <KanbanColumn
                 key={column.id}
                 column={column}
-                cards={column.cardIds.map((cardId) => board.cards[cardId])}
+                cards={column.cardIds
+                  .map((cardId) => board.cards[cardId])
+                  .filter((card) => matchesCardFilter(card, filter))}
+                totalCardCount={column.cardIds.length}
                 onRename={handleRenameColumn}
                 onAddCard={handleAddCard}
                 onDeleteCard={handleDeleteCard}

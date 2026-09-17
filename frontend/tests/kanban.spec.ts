@@ -85,6 +85,20 @@ test("moves a card between columns", async ({ page }) => {
   await expect(targetColumn.getByTestId("card-card-1")).toBeVisible();
 });
 
+test("filters cards by search text", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/");
+  await signIn(page);
+
+  await page.getByLabel("Search cards").fill("roadmap");
+
+  await expect(page.getByText("Align roadmap themes")).toBeVisible();
+  await expect(page.getByText("Gather customer signals")).not.toBeVisible();
+
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await expect(page.getByText("Gather customer signals")).toBeVisible();
+});
+
 test("creates a new board from the board list", async ({ page }) => {
   await mockApi(page);
   await page.route("**/api/boards", async (route) => {

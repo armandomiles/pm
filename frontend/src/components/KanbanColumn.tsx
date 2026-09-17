@@ -8,6 +8,7 @@ import { NewCardForm } from "@/components/NewCardForm";
 type KanbanColumnProps = {
   column: Column;
   cards: Card[];
+  totalCardCount: number;
   onRename: (columnId: string, title: string) => void;
   onAddCard: (
     columnId: string,
@@ -23,12 +24,14 @@ type KanbanColumnProps = {
 export const KanbanColumn = ({
   column,
   cards,
+  totalCardCount,
   onRename,
   onAddCard,
   onDeleteCard,
   onEditCard,
 }: KanbanColumnProps) => {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
+  const isFiltered = cards.length !== totalCardCount;
 
   return (
     <section
@@ -44,7 +47,7 @@ export const KanbanColumn = ({
           <div className="flex items-center gap-3">
             <div className="h-2 w-10 rounded-full bg-[var(--accent-yellow)]" />
             <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gray-text)]">
-              {cards.length} cards
+              {isFiltered ? `${cards.length} of ${totalCardCount} cards` : `${cards.length} cards`}
             </span>
           </div>
           <input
@@ -56,7 +59,7 @@ export const KanbanColumn = ({
         </div>
       </div>
       <div className="mt-4 flex flex-1 flex-col gap-3">
-        <SortableContext items={column.cardIds} strategy={verticalListSortingStrategy}>
+        <SortableContext items={cards.map((card) => card.id)} strategy={verticalListSortingStrategy}>
           {cards.map((card) => (
             <KanbanCard
               key={card.id}
@@ -68,7 +71,7 @@ export const KanbanColumn = ({
         </SortableContext>
         {cards.length === 0 && (
           <div className="flex flex-1 items-center justify-center rounded-2xl border border-dashed border-[var(--stroke)] px-3 py-6 text-center text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gray-text)]">
-            Drop a card here
+            {isFiltered ? "No cards match your filters" : "Drop a card here"}
           </div>
         )}
       </div>

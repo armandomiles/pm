@@ -35,6 +35,38 @@ export const formatDueDate = (dueDate: string): string => {
   });
 };
 
+export type CardFilter = {
+  text: string;
+  priority: CardPriority | "all";
+  overdueOnly: boolean;
+};
+
+export const defaultCardFilter: CardFilter = {
+  text: "",
+  priority: "all",
+  overdueOnly: false,
+};
+
+export const isCardFilterActive = (filter: CardFilter): boolean =>
+  filter.text.trim() !== "" || filter.priority !== "all" || filter.overdueOnly;
+
+export const matchesCardFilter = (card: Card, filter: CardFilter): boolean => {
+  if (filter.priority !== "all" && card.priority !== filter.priority) {
+    return false;
+  }
+  if (filter.overdueOnly && !isOverdue(card.dueDate)) {
+    return false;
+  }
+  const text = filter.text.trim().toLowerCase();
+  if (text) {
+    const haystack = `${card.title} ${card.details}`.toLowerCase();
+    if (!haystack.includes(text)) {
+      return false;
+    }
+  }
+  return true;
+};
+
 export const initialData: BoardData = {
   columns: [
     { id: "col-backlog", title: "Backlog", cardIds: ["card-1", "card-2"] },

@@ -331,12 +331,28 @@ The original MVP scope above is complete. `AGENTS.md`'s "Limitations" section ex
 - [x] Tests: `kanban.test.ts` (`isOverdue`/`formatDueDate`), `KanbanBoard.test.tsx` (edit + cancel-edit flows), `kanban.spec.ts` e2e (edit a card's title/priority end to end).
 - [x] Full suite re-run after the change: 38 backend tests, 25 frontend unit tests, 6 Playwright specs — all passing.
 
-## Part 13+: candidate future work
+## Part 13: Search and filter across a board's cards
+
+### Decisions
+
+- Purely a frontend, client-side feature — no backend or schema changes. The full board is already loaded into the browser, so search/filter is a display-layer concern over data the app already has.
+- Filter criteria: free-text search (matches title or details, case-insensitive substring), priority, and an "overdue only" toggle, combinable. Modeled as a single `CardFilter` object (`src/lib/kanban.ts`) with a pure `matchesCardFilter` predicate, unit-tested independently of any component.
+- `KanbanColumn` now derives its `SortableContext` `items` from the (possibly filtered) `cards` prop it renders, instead of the column's full unfiltered `cardIds`, so the drag-and-drop item list and the rendered DOM elements always stay 1:1 — filtering can never desync dnd-kit's internal state. Filtered-out cards remain in the underlying board data untouched; only the current view is narrowed.
+- Column headers show "X of Y cards" and a distinct "No cards match your filters" empty state (vs. "Drop a card here" for a genuinely empty column) whenever a filter is active, so it is never ambiguous whether a column is empty or just filtered.
+
+### Checklist
+
+- [x] `CardFilter` type, `defaultCardFilter`, `isCardFilterActive`, `matchesCardFilter` (`src/lib/kanban.ts`), unit-tested.
+- [x] New `BoardFilterBar` component (search input, priority select, overdue-only checkbox, live match count, clear-filters button).
+- [x] `KanbanColumn`/`KanbanBoard` wired to filter cards per column while leaving board data and drag-and-drop untouched.
+- [x] Tests: `kanban.test.ts` (filter predicate), `KanbanBoard.test.tsx` (search, priority filter, clear filters), `kanban.spec.ts` e2e (search end to end).
+- [x] Full suite re-run: 38 backend tests (unaffected, no backend changes), 35 frontend unit tests, 7 Playwright specs — all passing. Verified visually via screenshots that the filter bar matches the existing design language and the empty/filtered states render correctly.
+
+## Part 14+: candidate future work
 
 Not started. Listed so a future iteration doesn't have to rediscover scope from scratch:
 
 - Card assignee (meaningful once boards can be shared with more than one user).
-- Search/filter across a board's cards (by title, priority, due date, overdue-only).
 - Board sharing / collaborators (would need a `board_members` table and a real authorization model beyond "owner_id match").
 - Symmetric optimistic-concurrency guard on manual board saves (see Part 11's Known gaps).
 - Account settings (change password, delete account) — noted as a gap in Part 11.

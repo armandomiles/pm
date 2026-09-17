@@ -77,6 +77,37 @@ describe("KanbanBoard", () => {
     expect(within(column).queryByText("Should not save")).not.toBeInTheDocument();
   });
 
+  it("filters cards by search text", async () => {
+    render(<KanbanBoard />);
+    await userEvent.type(screen.getByLabelText("Search cards"), "roadmap");
+
+    expect(screen.getByText("Align roadmap themes")).toBeInTheDocument();
+    expect(screen.queryByText("Gather customer signals")).not.toBeInTheDocument();
+  });
+
+  it("clears an active filter", async () => {
+    render(<KanbanBoard />);
+    await userEvent.type(screen.getByLabelText("Search cards"), "roadmap");
+    expect(screen.queryByText("Gather customer signals")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    expect(screen.getByText("Gather customer signals")).toBeInTheDocument();
+  });
+
+  it("filters cards by priority", async () => {
+    render(<KanbanBoard />);
+    const column = getFirstColumn();
+    await userEvent.click(within(column).getByRole("button", { name: /edit align roadmap themes/i }));
+    await userEvent.selectOptions(within(column).getByLabelText("Priority"), "high");
+    await userEvent.click(within(column).getByRole("button", { name: "Save" }));
+
+    await userEvent.selectOptions(screen.getByLabelText("Filter by priority"), "high");
+
+    expect(screen.getByText("Align roadmap themes")).toBeInTheDocument();
+    expect(screen.queryByText("Gather customer signals")).not.toBeInTheDocument();
+  });
+
   it("loads and saves the board through the API", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({ ok: true, json: async () => initialData })

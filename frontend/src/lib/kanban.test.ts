@@ -1,4 +1,13 @@
-import { formatDueDate, isOverdue, moveCard, type Column } from "@/lib/kanban";
+import {
+  defaultCardFilter,
+  formatDueDate,
+  isCardFilterActive,
+  isOverdue,
+  matchesCardFilter,
+  moveCard,
+  type Card,
+  type Column,
+} from "@/lib/kanban";
 
 describe("moveCard", () => {
   const baseColumns: Column[] = [
@@ -44,5 +53,58 @@ describe("formatDueDate", () => {
     expect(formatDueDate("2026-09-30")).toBe(
       new Date("2026-09-30T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })
     );
+  });
+});
+
+describe("isCardFilterActive", () => {
+  it("is false for the default filter", () => {
+    expect(isCardFilterActive(defaultCardFilter)).toBe(false);
+  });
+
+  it("is true when any field diverges from the default", () => {
+    expect(isCardFilterActive({ ...defaultCardFilter, text: "foo" })).toBe(true);
+    expect(isCardFilterActive({ ...defaultCardFilter, priority: "high" })).toBe(true);
+    expect(isCardFilterActive({ ...defaultCardFilter, overdueOnly: true })).toBe(true);
+  });
+});
+
+describe("matchesCardFilter", () => {
+  const card: Card = {
+    id: "card-1",
+    title: "Align roadmap themes",
+    details: "Draft quarterly themes with impact statements.",
+    dueDate: "2000-01-01",
+    priority: "high",
+  };
+
+  it("matches everything under the default filter", () => {
+    expect(matchesCardFilter(card, defaultCardFilter)).toBe(true);
+  });
+
+  it("matches text against title or details, case-insensitively", () => {
+    expect(matchesCardFilter(card, { ...defaultCardFilter, text: "roadmap" })).toBe(true);
+    expect(matchesCardFilter(card, { ...defaultCardFilter, text: "IMPACT" })).toBe(true);
+    expect(matchesCardFilter(card, { ...defaultCardFilter, text: "nope" })).toBe(false);
+  });
+
+  it("filters by priority", () => {
+    expect(matchesCardFilter(card, { ...defaultCardFilter, priority: "high" })).toBe(true);
+    expect(matchesCardFilter(card, { ...defaultCardFilter, priority: "low" })).toBe(false);
+  });
+
+  it("filters by overdue-only", () => {
+    expect(matchesCardFilter(card, { ...defaultCardFilter, overdueOnly: true })).toBe(true);
+    expect(
+      matchesCardFilter({ ...card, dueDate: "2999-01-01" }, { ...defaultCardFilter, overdueOnly: true })
+    ).toBe(false);
+  });
+
+  it("combines all filter criteria", () => {
+    expect(
+      matchesCardFilter(card, { text: "roadmap", priority: "high", overdueOnly: true })
+    ).toBe(true);
+    expect(
+      matchesCardFilter(card, { text: "roadmap", priority: "low", overdueOnly: true })
+    ).toBe(false);
   });
 });
