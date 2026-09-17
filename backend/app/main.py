@@ -270,6 +270,11 @@ def update_user_board(
             status_code=status.HTTP_412_PRECONDITION_FAILED,
             detail="This board was changed elsewhere. Reload to see the latest version before saving.",
         )
+    if result == "invalid_assignee":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A card is assigned to someone who doesn't have access to this board.",
+        )
     if updated_at is not None:
         response.headers["X-Board-Updated-At"] = updated_at
     return board
@@ -419,7 +424,11 @@ def ai_chat(
             # update rather than silently overwriting the newer, concurrent change.
             chat_response = chat_response.model_copy(update={"board": None})
         else:
-            save_board_content(payload.board_id, user_id, chat_response.board)
+            save_result, _ = save_board_content(payload.board_id, user_id, chat_response.board)
+            if save_result != "saved":
+                # e.g. the AI assigned a card to someone without access to this board.
+                # Don't tell the client the change applied when it didn't persist.
+                chat_response = chat_response.model_copy(update={"board": None})
     return chat_response
 
 

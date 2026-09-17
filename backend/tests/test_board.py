@@ -122,6 +122,25 @@ def test_board_put_without_if_unmodified_since_always_saves(tmp_path, monkeypatc
     assert client.put(f"/api/boards/{board_id}", json=board).status_code == 200
 
 
+def test_board_put_rejects_assignee_without_board_access(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "board.db"))
+    sign_in()
+    board_id = default_board_id()
+    client.post("/api/auth/signup", json={"username": "stranger", "password": "supersecret"})
+    sign_in()
+
+    board = client.get(f"/api/boards/{board_id}").json()
+    card_id = board["columns"][0]["cardIds"][0]
+
+    board["cards"][card_id]["assignee"] = "user"
+    assert client.put(f"/api/boards/{board_id}", json=board).status_code == 200
+
+    board["cards"][card_id]["assignee"] = "stranger"
+    response = client.put(f"/api/boards/{board_id}", json=board)
+    assert response.status_code == 400
+    assert client.get(f"/api/boards/{board_id}").json()["cards"][card_id]["assignee"] == "user"
+
+
 def test_board_rejects_invalid_card_references(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "board.db"))
     sign_in()

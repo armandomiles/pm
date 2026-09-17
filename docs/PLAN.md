@@ -414,10 +414,25 @@ The original MVP scope above is complete. `AGENTS.md`'s "Limitations" section ex
 - [x] Tests: 2 new database-level tests (successful versioned save, rejected stale save), 3 new endpoint-level tests (header exposure, conflict rejection preserves the winning edit, no-header-sent still saves), 2 new frontend unit tests (header is sent, conflict message + revert).
 - [x] Full suite re-run: 70 backend tests, 49 frontend unit tests, 11 Playwright specs — all passing. Manually simulated two racing "browser tabs" against the real Docker backend: the first save succeeds, the second (still referencing the pre-first-save version) is rejected with 412, and the first tab's edit survives instead of being silently overwritten.
 
-## Part 18+: candidate future work
+## Part 18: Server-side assignee validation
+
+### Decisions
+
+- Closed a gap noted in Part 16: `Card.assignee` was trusted from the client with no server-side check. Now validated inside `save_board_content` itself (same transaction as the access and `if_unmodified_since` checks) - every non-null assignee on every card must be the board's owner or a current `board_members` row, or the whole save is rejected with a new `"invalid_assignee"` result / `400 Bad Request`.
+- Validation lives inside `save_board_content` rather than in the route, specifically so it runs *after* `_board_access` confirms the caller can see the board - checking membership-of-assignee before checking the caller's own access would let an unauthorized prober learn a board's member list (400 vs. 404) by trial and error. Same reasoning as the existing not-found-vs-forbidden convention elsewhere in this API.
+- This also closes a real inconsistency in `ai_chat`: previously it called `save_board_content` and ignored the result entirely, so if the AI proposed assigning a card to someone without board access, the save would now silently no-op while the chat response still claimed the board was updated - the client would see the AI's (unpersisted) board applied optimistically, then have it fail and revert a moment later via its own follow-up save. Fixed by checking the result and discarding `chat_response.board` on anything other than `"saved"`, mirroring the existing staleness-discard branch right next to it.
+- Doesn't retroactively clear an assignee if that person is later removed from the board - existing valid data isn't touched, only new save attempts that would (re-)introduce or repeat an invalid assignee are rejected. A cleanup pass is a possible future refinement, not needed for this scope.
+
+### Checklist
+
+- [x] Backend: assignee validation in `save_board_content`, `400` handling in `update_user_board`, `ai_chat` now checks the save result instead of discarding it.
+- [x] Tests: 1 new database-level test (valid assignee saves, invalid assignee rejected without corrupting stored data), 1 new endpoint-level test (assign while a member, reject after removal).
+- [x] Full suite re-run: 72 backend tests, 49 frontend unit tests (unaffected - no frontend changes needed) — all passing. Manually verified the exact "member removed after being assigned" race against the real Docker backend: assignment succeeds while a member, removal succeeds, the stale re-save is rejected with 400, and the previously-saved valid data is untouched.
+
+## Part 19+: candidate future work
 
 Not started. Listed so a future iteration doesn't have to rediscover scope from scratch:
 
 - Real roles for board sharing (viewer vs. editor) if "everyone with access can fully edit" ever proves too permissive.
-- Validate `Card.assignee` against actual board membership server-side (currently trusted from the client, matching the light-touch validation already applied to due date/priority).
 - Surface the 412 conflict more actively in the UI (e.g., a "reload" button inline with the error, or an automatic background refetch) rather than just an error message the user has to act on manually.
+- Optionally clear/flag a card's assignee when that person loses board access, instead of just leaving already-saved (formerly valid) data as-is.

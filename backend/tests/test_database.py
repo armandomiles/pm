@@ -1,6 +1,9 @@
 import pytest
 
 from app.database import (
+    Board,
+    Card,
+    Column,
     add_board_member,
     create_board,
     create_user,
@@ -103,6 +106,32 @@ def test_save_board_content_rejects_a_stale_if_unmodified_since() -> None:
     assert result == "conflict"
     assert updated_at is None
     assert get_board(summary.id, user.id).columns[0].title == "Second edit"
+
+
+def test_save_board_content_rejects_a_card_assigned_to_someone_without_access() -> None:
+    owner = create_user("gale", "supersecret")
+    member = create_user("hana", "supersecret")
+    stranger = create_user("ivan", "supersecret")
+    summary = create_board(owner.id, "Board", empty_board())
+    add_board_member(summary.id, member.id)
+
+    board_with_valid_assignee = Board(
+        columns=[Column(id="col-a", title="A", cardIds=["card-1"])],
+        cards={"card-1": Card(id="card-1", title="Task", details="", assignee=member.id)},
+    )
+    result, updated_at = save_board_content(summary.id, owner.id, board_with_valid_assignee)
+    assert result == "saved"
+    assert updated_at is not None
+
+    board_with_invalid_assignee = Board(
+        columns=[Column(id="col-a", title="A", cardIds=["card-1"])],
+        cards={"card-1": Card(id="card-1", title="Task", details="", assignee=stranger.id)},
+    )
+    result, updated_at = save_board_content(summary.id, owner.id, board_with_invalid_assignee)
+
+    assert result == "invalid_assignee"
+    assert updated_at is None
+    assert get_board(summary.id, owner.id).cards["card-1"].assignee == member.id
 
 
 def test_rename_board_updates_name_and_reports_missing_board() -> None:

@@ -350,7 +350,7 @@ def get_board_updated_at(board_id: str, user_id: str) -> str | None:
     return row["updated_at"] if row is not None else None
 
 
-SaveBoardResult = Literal["saved", "not_found", "conflict"]
+SaveBoardResult = Literal["saved", "not_found", "conflict", "invalid_assignee"]
 
 
 def save_board_content(
@@ -363,17 +363,27 @@ def save_board_content(
     set when result == "saved". If if_unmodified_since is given and the board's stored
     updated_at is newer than it, the save is rejected as a conflict rather than silently
     overwriting a change the caller never saw - the same protection ai_chat already
-    applies to AI-driven updates, extended to manual saves."""
+    applies to AI-driven updates, extended to manual saves. Every card's assignee (when
+    set) must be the owner or a current member of this board - checked here, inside the
+    access-check transaction, rather than in the route, so an unauthorized caller can't
+    use a crafted assignee to probe whether a board exists (see _board_access)."""
     initialize_database()
     now = datetime.now(timezone.utc).isoformat()
     with connect() as connection:
-        has_access, _ = _board_access(connection, board_id, user_id)
+        has_access, owner_id = _board_access(connection, board_id, user_id)
         if not has_access:
             return "not_found", None
         if if_unmodified_since is not None:
             row = connection.execute("SELECT updated_at FROM boards WHERE id = ?", (board_id,)).fetchone()
             if row is not None and row["updated_at"] > if_unmodified_since:
                 return "conflict", None
+        member_rows = connection.execute(
+            "SELECT user_id FROM board_members WHERE board_id = ?", (board_id,)
+        ).fetchall()
+        valid_assignees = {owner_id, *(row["user_id"] for row in member_rows)}
+        for card in board.cards.values():
+            if card.assignee is not None and card.assignee not in valid_assignees:
+                return "invalid_assignee", None
         cursor = connection.execute(
             "UPDATE boards SET board_json = ?, updated_at = ? WHERE id = ?",
             (board_to_json(board), now, board_id),
