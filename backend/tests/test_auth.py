@@ -19,6 +19,15 @@ def test_login_rejects_invalid_credentials() -> None:
     assert response.status_code == 401
 
 
+def test_login_rejects_unknown_username() -> None:
+    response = client.post(
+        "/api/auth/login",
+        json={"username": "nobody", "password": "password"},
+    )
+
+    assert response.status_code == 401
+
+
 def test_login_creates_memory_session_and_me_returns_user() -> None:
     login_response = client.post(
         "/api/auth/login",
@@ -40,3 +49,60 @@ def test_logout_removes_session() -> None:
 
     assert logout_response.status_code == 200
     assert client.get("/api/auth/me").status_code == 401
+
+
+def test_signup_creates_account_and_signs_in(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "signup.db"))
+
+    response = client.post(
+        "/api/auth/signup",
+        json={"username": "newperson", "password": "correct-horse"},
+    )
+
+    assert response.status_code == 201
+    assert response.json() == {"username": "newperson"}
+    assert client.get("/api/auth/me").json() == {"username": "newperson"}
+
+
+def test_signup_rejects_duplicate_username(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "signup.db"))
+    client.post("/api/auth/signup", json={"username": "taken", "password": "correct-horse"})
+
+    response = client.post("/api/auth/signup", json={"username": "taken", "password": "another-pass"})
+
+    assert response.status_code == 409
+
+
+def test_signup_rejects_short_password(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "signup.db"))
+
+    response = client.post("/api/auth/signup", json={"username": "shorty", "password": "short"})
+
+    assert response.status_code == 400
+
+
+def test_signup_rejects_blank_username(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "signup.db"))
+
+    response = client.post("/api/auth/signup", json={"username": "   ", "password": "correct-horse"})
+
+    assert response.status_code == 400
+
+
+def test_new_account_starts_with_one_empty_board(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "signup.db"))
+    client.post("/api/auth/signup", json={"username": "newperson", "password": "correct-horse"})
+
+    boards = client.get("/api/boards").json()
+
+    assert len(boards) == 1
+    assert boards[0]["name"] == "My Board"
+    board = client.get(f"/api/boards/{boards[0]['id']}").json()
+    assert board["cards"] == {}
+    assert [column["title"] for column in board["columns"]] == [
+        "Backlog",
+        "Discovery",
+        "In Progress",
+        "Review",
+        "Done",
+    ]

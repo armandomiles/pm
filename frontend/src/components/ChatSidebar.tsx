@@ -9,10 +9,11 @@ type Message = {
 };
 
 type ChatSidebarProps = {
+  boardId: string;
   onBoardUpdate: (board: BoardData) => void;
 };
 
-export const ChatSidebar = ({ onBoardUpdate }: ChatSidebarProps) => {
+export const ChatSidebar = ({ boardId, onBoardUpdate }: ChatSidebarProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [question, setQuestion] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -36,7 +37,7 @@ export const ChatSidebar = ({ onBoardUpdate }: ChatSidebarProps) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ question: trimmedQuestion, history: messages }),
+        body: JSON.stringify({ board_id: boardId, question: trimmedQuestion, history: messages }),
       });
       if (!response.ok) {
         throw new Error("The assistant could not answer right now.");

@@ -18,13 +18,14 @@ describe("ChatSidebar", () => {
     vi.stubGlobal("fetch", fetchMock);
     const onBoardUpdate = vi.fn();
 
-    render(<ChatSidebar onBoardUpdate={onBoardUpdate} />);
+    render(<ChatSidebar boardId="board-1" onBoardUpdate={onBoardUpdate} />);
     await userEvent.type(screen.getByLabelText("Message the assistant"), "Move it");
     await userEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     expect(await screen.findByText("I moved that work.")).toBeInTheDocument();
     expect(onBoardUpdate).toHaveBeenCalledWith(updatedBoard);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      board_id: "board-1",
       question: "Move it",
       history: [],
     });
@@ -33,7 +34,7 @@ describe("ChatSidebar", () => {
   it("shows an error when the assistant request fails", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
 
-    render(<ChatSidebar onBoardUpdate={vi.fn()} />);
+    render(<ChatSidebar boardId="board-1" onBoardUpdate={vi.fn()} />);
     await userEvent.type(screen.getByLabelText("Message the assistant"), "Help");
     await userEvent.click(screen.getByRole("button", { name: "Send message" }));
 

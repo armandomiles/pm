@@ -51,14 +51,14 @@ describe("KanbanBoard", () => {
       .mockResolvedValue({ ok: true });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<KanbanBoard onLogout={vi.fn()} />);
+    render(<KanbanBoard boardId="board-1" onLogout={vi.fn()} />);
     const column = await screen.findByDisplayValue("Backlog");
     await userEvent.clear(column);
     await userEvent.type(column, "Queued");
 
     const saveCalls = fetchMock.mock.calls.filter(([, options]) => options?.method === "PUT");
     const saveCall = saveCalls.at(-1);
-    expect(saveCall?.[0]).toBe("/api/board");
+    expect(saveCall?.[0]).toBe("/api/boards/board-1");
     expect(JSON.parse(saveCall?.[1].body).columns[0].title).toBe("Queued");
   });
 
@@ -68,7 +68,7 @@ describe("KanbanBoard", () => {
       .mockResolvedValue({ ok: false });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<KanbanBoard onLogout={vi.fn()} />);
+    render(<KanbanBoard boardId="board-1" onLogout={vi.fn()} />);
     await screen.findByDisplayValue("Backlog");
     const column = getFirstColumn();
     await userEvent.click(within(column).getByRole("button", { name: /add a card/i }));

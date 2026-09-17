@@ -17,10 +17,13 @@ import { ChatSidebar } from "@/components/ChatSidebar";
 import { createId, initialData, moveCard, type BoardData } from "@/lib/kanban";
 
 type KanbanBoardProps = {
+  boardId?: string;
+  boardName?: string;
   onLogout?: () => void;
+  onBack?: () => void;
 };
 
-export const KanbanBoard = ({ onLogout }: KanbanBoardProps) => {
+export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoardProps) => {
   const isApiMode = Boolean(onLogout);
   const [board, setBoard] = useState<BoardData>(() => initialData);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
@@ -32,7 +35,7 @@ export const KanbanBoard = ({ onLogout }: KanbanBoardProps) => {
       return;
     }
 
-    fetch("/api/board", { credentials: "include" })
+    fetch(`/api/boards/${boardId}`, { credentials: "include" })
       .then(async (response) => {
         if (!response.ok) {
           throw new Error("Unable to load the board.");
@@ -41,7 +44,7 @@ export const KanbanBoard = ({ onLogout }: KanbanBoardProps) => {
       })
       .catch(() => setSaveError("Unable to load the board."))
       .finally(() => setIsLoading(false));
-  }, [isApiMode]);
+  }, [isApiMode, boardId]);
 
   const updateBoard = (nextBoard: BoardData) => {
     const previousBoard = board;
@@ -51,7 +54,7 @@ export const KanbanBoard = ({ onLogout }: KanbanBoardProps) => {
     }
 
     setSaveError(null);
-    fetch("/api/board", {
+    fetch(`/api/boards/${boardId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -152,10 +155,10 @@ export const KanbanBoard = ({ onLogout }: KanbanBoardProps) => {
           <div className="flex flex-wrap items-center justify-between gap-6">
             <div className="max-w-xl">
               <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--gray-text)]">
-                Single Board Kanban
+                {boardName ? "Kanban board" : "Single Board Kanban"}
               </p>
               <h1 className="mt-2 font-display text-3xl font-semibold text-[var(--navy-dark)] lg:text-4xl">
-                Kanban Studio
+                {boardName ?? "Kanban Studio"}
               </h1>
               <p className="mt-2 text-sm leading-6 text-[var(--gray-text)]">
                 Rename columns, drag cards between stages, and capture quick notes.
@@ -170,6 +173,15 @@ export const KanbanBoard = ({ onLogout }: KanbanBoardProps) => {
                   One board. Five columns. Zero clutter.
                 </p>
               </div>
+              {onBack ? (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="rounded-full border border-[var(--stroke)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--gray-text)] transition hover:text-[var(--navy-dark)]"
+                >
+                  All boards
+                </button>
+              ) : null}
               {onLogout ? (
                 <button
                   type="button"
@@ -210,7 +222,7 @@ export const KanbanBoard = ({ onLogout }: KanbanBoardProps) => {
           </DragOverlay>
         </DndContext>
       </main>
-      {onLogout ? <ChatSidebar onBoardUpdate={updateBoard} /> : null}
+      {onLogout ? <ChatSidebar boardId={boardId as string} onBoardUpdate={updateBoard} /> : null}
     </div>
   );
 };

@@ -266,10 +266,59 @@ Part 2 implementation is complete; the environment-variable and startup document
 - Accepted AI changes appear in the board without a manual reload.
 - Conversation history disappears when the browser session ends and is never stored in SQLite.
 
-## Overall completion criteria
+## Overall completion criteria (original MVP scope)
 
 - The documented Docker workflow starts the complete application locally.
 - Authentication, Kanban persistence, and AI updates work together for the MVP user.
 - Automated frontend and backend tests cover the principal success and failure paths.
 - Secrets remain in environment configuration and are not bundled into the static frontend.
 - The README and working documentation describe the commands, limitations, and approval decisions accurately.
+
+---
+
+## Post-MVP expansion
+
+The original MVP scope above is complete. `AGENTS.md`'s "Limitations" section explicitly anticipated growing past a single hardcoded user ("the database will support multiple users for future"). The parts below track that expansion into a comprehensive project-management app, run as an autonomous Ralph-loop task. Since there is no human approval checkpoint mid-loop, each part is scoped to a complete, independently-tested vertical slice, and decisions are recorded here (rather than gated) so later iterations — and a human reviewing afterward — can see what changed and why.
+
+## Part 11: Real user accounts and multiple boards per user
+
+### Decisions
+
+- Replaced the single hardcoded `user`/`password` credential with real accounts: `users` table (scrypt-hashed passwords, stdlib `hashlib.scrypt` — no new dependency), signup + login against it. The original credential is auto-seeded on a fresh database so existing setups and docs keep working.
+- Replaced the one-board-per-user `board_snapshots` table with a `boards` table (`id`, `owner_id`, `name`, `board_json`, timestamps) — a user can now own several boards. The board JSON shape itself (`columns`/`cards`) is unchanged, so the frontend's `BoardData` type didn't need to change, only how it's addressed (`/api/boards/{id}` instead of a single `/api/board`).
+- Sessions stay in-memory (`token -> user_id`), same non-persistent design as before, now supporting more than one user id.
+- Added a board list/dashboard screen (shown after login, before the Kanban board) to create, rename, delete, and switch between boards. See `docs/database-schema.md` for the full schema and API shape.
+- AI chat now takes a `board_id` in the request and operates on that specific board.
+
+### Checklist
+
+- [x] `users` table + password hashing (`backend/app/security.py`) + signup/login routes.
+- [x] `boards` table replacing `board_snapshots`; CRUD routes (`/api/boards`, `/api/boards/{id}` GET/PUT/PATCH/DELETE).
+- [x] Bootstrap seeding of the original `user`/`password` account + its sample board on a fresh database.
+- [x] Frontend: signup mode on `LoginForm`, new `BoardList` component, `KanbanBoard`/`ChatSidebar` updated to be board-scoped.
+- [x] Backend tests: `test_auth.py`, `test_board.py`, `test_chat.py` updated; new `test_database.py`, `test_security.py`.
+- [x] Frontend tests: `LoginForm.test.tsx` signup cases, new `BoardList.test.tsx`, `KanbanBoard.test.tsx`/`ChatSidebar.test.tsx` updated for `boardId`; `kanban.spec.ts` e2e updated for the board-list flow plus new create/navigate specs.
+- [x] Full-stack smoke test against the real (non-mocked) backend in Docker: signup, board CRUD, cross-user isolation (404, not 403, to avoid existence leaks), and restart-persistence.
+
+### Tests and checks
+
+- `uv run pytest tests` (or the Docker fallback) — 38 backend tests passing.
+- `npm run lint`, `npm run test:unit` (19 tests), `npm run build`, `npm run test:e2e` (5 specs) — all passing.
+- Manual curl smoke test against the live Docker container covering signup, board create/rename/delete, cross-user 404s, duplicate-username 409, short-password 400, and restart persistence.
+
+### Known gaps for future parts
+
+- No board sharing/collaborators — boards are single-owner only.
+- No minimum-one-board guard; a user can delete every board (frontend shows an empty-state prompt).
+- The optimistic-concurrency guard on AI-driven board updates (discard a stale AI update if the board changed mid-request) was not extended to manual `PUT` saves — a slow manual save can still race another manual save to the same board. Pre-existing gap, not introduced by this part.
+- No card metadata beyond title/details (no due dates, labels, assignees, comments) — candidate for Part 12.
+- No account settings (change password, delete account).
+
+## Part 12+: candidate future work
+
+Not started. Listed so a future iteration doesn't have to rediscover scope from scratch:
+
+- Card metadata: due dates, priority/labels, assignee (meaningful now that boards could eventually be shared).
+- Search/filter across a board's cards.
+- Board sharing / collaborators (would need a `board_members` table and a real authorization model beyond "owner_id match").
+- Symmetric optimistic-concurrency guard on manual board saves (see Known gaps above).

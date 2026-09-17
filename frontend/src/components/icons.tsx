@@ -21,6 +21,21 @@ export const TrashIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+export const PencilIcon = ({ className }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.75}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19 3 20l1-4Z" />
+  </svg>
+);
+
 export const PlusIcon = ({ className }: IconProps) => (
   <svg
     viewBox="0 0 24 24"
