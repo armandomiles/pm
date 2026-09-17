@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 import { initialData } from "@/lib/kanban";
 
 const BOARD_ID = "board-1";
-const BOARD_SUMMARY = { id: BOARD_ID, name: "My Board", updated_at: "2026-01-01T00:00:00Z" };
+const BOARD_SUMMARY = { id: BOARD_ID, name: "My Board", updated_at: "2026-01-01T00:00:00Z", is_owner: true };
 
 const mockApi = async (page: Page) => {
   await page.route("**/api/auth/me", (route) =>
@@ -106,7 +106,7 @@ test("creates a new board from the board list", async ({ page }) => {
       const body = JSON.parse(route.request().postData() ?? "{}");
       await route.fulfill({
         status: 201,
-        json: { id: "board-2", name: body.name, updated_at: "2026-01-02T00:00:00Z" },
+        json: { id: "board-2", name: body.name, updated_at: "2026-01-02T00:00:00Z", is_owner: true },
       });
       return;
     }
@@ -171,6 +171,29 @@ test("changes the account password", async ({ page }) => {
   await page.getByRole("button", { name: "Update password" }).click();
 
   await expect(page.getByText("Password updated.")).toBeVisible();
+});
+
+test("shares a board with another user from the board list", async ({ page }) => {
+  await mockApi(page);
+  await page.route(`**/api/boards/${BOARD_ID}/members`, async (route) => {
+    if (route.request().method() === "POST") {
+      await route.fulfill({ status: 201, json: ["user", "teammate"] });
+      return;
+    }
+    await route.fulfill({ status: 200, json: ["user"] });
+  });
+  await page.goto("/");
+  await page.getByLabel("Username").fill("user");
+  await page.getByLabel("Password").fill("password");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("heading", { name: "Choose a board", exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Share My Board" }).click();
+  await expect(page.getByText("Shared with")).toBeVisible();
+  await page.getByLabel("Username to invite").fill("teammate");
+  await page.getByRole("button", { name: "Invite" }).click();
+
+  await expect(page.getByText("teammate")).toBeVisible();
 });
 
 test("deletes the account after confirming the password", async ({ page }) => {

@@ -24,13 +24,20 @@ CREATE TABLE boards (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE board_members (
+    board_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    added_at TEXT NOT NULL,
+    PRIMARY KEY (board_id, user_id)
+);
 ```
 
 `users.id` is currently the username itself (usernames are immutable for the MVP, so there is no need for a separate surrogate key). `password_hash` is `scrypt(password, salt)` encoded as `salt_hex$digest_hex` (see `backend/app/security.py`); no third-party hashing dependency was added since Python's stdlib `hashlib.scrypt` is sufficient.
 
 `boards.id` is a generated hex token (not derived from the owner), since a user can own several boards. `boards.owner_id` references `users.id` (no `FOREIGN KEY` enforcement — SQLite's default is off and the app never creates a board without a valid owner). `board_json` contains a serialized `BoardData` document, unchanged in shape from the original single-board design. `updated_at` is an ISO 8601 UTC timestamp.
 
-Saving a board's content replaces `board_json` for that row (scoped by `id` **and** `owner_id`, so one user can never overwrite another's board even by guessing an id). Renaming a board only touches `name`/`updated_at`. Both operations report whether a matching row existed so the API can return 404 rather than silently no-op.
+Saving or renaming a board's content is scoped by `id` and checked against `_board_access` (owner **or** a row in `board_members` for that board+user) rather than a strict `owner_id` match, so an invited member can fully edit and rename a board without being its owner. Both operations report whether the caller had access so the API can return 404 rather than silently no-op. Deleting a board and managing its membership (`board_members` rows) remain strictly owner-only — `delete_board`/`add_board_member`/`remove_board_member` all key off `owner_id`, never shared access. `list_boards` returns the union of boards a user owns and boards where they appear in `board_members`, with an `is_owner` flag on each `BoardSummary` so the frontend can show a "Shared" badge and hide owner-only controls (rename/delete/share icons) for boards the user doesn't own — hiding is a UX nicety only, the backend enforces the real boundary regardless of what the frontend shows.
 
 ## Board JSON shape
 
@@ -69,4 +76,4 @@ The backend must validate that every `cardIds` entry references a card in `cards
 - SQLite writes replace the complete JSON document for one board in one transaction.
 - Deleting a board deletes its row outright; there is no soft-delete or trash.
 - A user can delete all of their boards (there is no minimum-one-board guard); the frontend's board list shows an empty state with a "create your first board" prompt in that case.
-- Boards are not shared between users. There is no membership/collaborator concept yet.
+- Boards can be shared: the owner can invite any existing user by username (`POST /api/boards/{id}/members`) and remove them (`DELETE /api/boards/{id}/members/{username}`); `GET /api/boards/{id}/members` lists everyone with access, owner first. There are no roles beyond owner-vs-member — every member can fully view/edit/rename a board's content, matching this project's "keep it simple" convention; only the owner can delete the board or manage its membership. Deleting a board or a user account cascades to remove the corresponding `board_members` rows (see `delete_board`/`delete_user_account`), so membership never outlives the board or the account it points at.

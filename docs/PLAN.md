@@ -363,10 +363,28 @@ The original MVP scope above is complete. `AGENTS.md`'s "Limitations" section ex
 - [x] Tests: 11 new backend tests (endpoint + database level, including the resurrection-bug regression case), 12 new frontend unit tests (`AccountSettings.test.tsx` + `BoardList` toggle), 2 new Playwright e2e specs.
 - [x] Full suite re-run: 49 backend tests, 42 frontend unit tests, 9 Playwright specs — all passing. Also manually smoke-tested change-password and delete-account against the real Docker container, including the specific resurrection-bug regression check.
 
-## Part 15+: candidate future work
+## Part 15: Board sharing / collaborators
+
+### Decisions
+
+- New `board_members` table (`board_id`, `user_id`, `added_at`, composite primary key). No roles: any member (owner or invited) can fully view/edit/rename a board's content, matching this project's "keep it simple" convention — only the owner can delete the board or manage membership. This is a deliberate simplification over a real roles model (owner/editor/viewer), left as a future refinement if ever needed.
+- Central `_board_access(connection, board_id, user_id) -> (has_access, owner_id)` helper is now the single source of truth for "can this user touch this board." `get_board`, `save_board_content`, and `rename_board` all route through it instead of a strict `owner_id =` match; `delete_board`, `add_board_member`, and `remove_board_member` intentionally bypass it and stay keyed to `owner_id` only.
+- `BoardSummary` gained an `is_owner: bool` field so the frontend can show a "Shared" badge and hide owner-only controls (rename/delete/share icons) for boards the user doesn't own. This is a UX nicety only — the backend enforces the real boundary via `_board_access` regardless of what the frontend renders.
+- New endpoints: `GET/POST /api/boards/{id}/members`, `DELETE /api/boards/{id}/members/{username}`. All owner-only, all return 404 (not 403) for both "board doesn't exist" and "you don't own it," matching the existing not-found-vs-forbidden convention elsewhere in this API. Adding a member is idempotent (`INSERT OR IGNORE`); adding the owner as a member of their own board or an unknown username are rejected explicitly (400/404).
+- Deleting a board or a user account cascades to remove the relevant `board_members` rows (`delete_board` removes the board's own membership rows; `delete_user_account` removes both the rows for boards the user owned and the rows recording their membership elsewhere), so membership never outlives what it points at.
+- Frontend: new `ShareBoardPanel` (list current members, invite by username, remove a member) toggled from a new "Share" icon on owned board rows in `BoardList`. Threading the current username down to `BoardList` required `LoginForm.onLogin` to pass back the username from the login/signup response instead of a bare signal, and `page.tsx` to hold onto it — a small but real plumbing change, not just an additive one.
+
+### Checklist
+
+- [x] Backend: `board_members` table, `_board_access`/`is_board_owner`/`list_board_members`/`add_board_member`/`remove_board_member` (`backend/app/database.py`), three new membership routes, `list_boards`/`create_board`/`rename_board` updated for `is_owner`, `delete_board`/`delete_user_account` cascades.
+- [x] Frontend: `UsersIcon`, `ShareBoardPanel`, `BoardList` share/shared-badge UI, `LoginForm`/`page.tsx` now thread the username through.
+- [x] Tests: 16 new backend tests (database level: member CRUD, access checks, cascade-on-delete for both boards and accounts; endpoint level: share/edit/rename-as-member, owner-only delete/manage-membership, cross-user isolation), 6 new frontend unit tests, 2 new Playwright e2e specs.
+- [x] Full suite re-run: 65 backend tests, 44 frontend unit tests, 10 Playwright specs — all passing. Also manually smoke-tested the full authorization matrix (stranger has no access, owner shares, member can edit/rename but not delete/manage-membership, owner revokes, member loses access) against the real Docker container, plus a visual check that the share panel and "Shared" badge match the existing design language.
+
+## Part 16+: candidate future work
 
 Not started. Listed so a future iteration doesn't have to rediscover scope from scratch:
 
-- Card assignee (meaningful once boards can be shared with more than one user).
-- Board sharing / collaborators (would need a `board_members` table and a real authorization model beyond "owner_id match").
+- Card assignee (now meaningful since boards can be shared with more than one user — assign a card to any current board member).
 - Symmetric optimistic-concurrency guard on manual board saves (see Part 11's Known gaps).
+- Real roles for board sharing (viewer vs. editor) if "everyone with access can fully edit" ever proves too permissive.

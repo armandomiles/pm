@@ -12,6 +12,7 @@ from app.ai import AIConfigurationError, AIRequestError, openrouter_chat
 from app.database import (
     Board,
     BoardSummary,
+    add_board_member,
     create_board,
     create_user,
     delete_board,
@@ -20,7 +21,10 @@ from app.database import (
     get_board,
     get_user_by_username,
     initialize_database,
+    is_board_owner,
+    list_board_members,
     list_boards,
+    remove_board_member,
     rename_board,
     save_board_content,
     update_user_password,
@@ -69,6 +73,10 @@ class CreateBoardRequest(BaseModel):
 
 class RenameBoardRequest(BaseModel):
     name: str
+
+
+class AddMemberRequest(BaseModel):
+    username: str
 
 
 class ChatMessage(BaseModel):
@@ -277,6 +285,56 @@ def delete_user_board(
     if not delete_board(board_id, user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get("/api/boards/{board_id}/members", response_model=list[str])
+def list_board_membership(
+    board_id: str,
+    session: str | None = Cookie(default=None, alias="pm_session"),
+) -> list[str]:
+    user_id = require_session(session)
+    if get_board(board_id, user_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
+    return list_board_members(board_id)
+
+
+@app.post("/api/boards/{board_id}/members", response_model=list[str], status_code=status.HTTP_201_CREATED)
+def add_board_membership(
+    board_id: str,
+    payload: AddMemberRequest,
+    session: str | None = Cookie(default=None, alias="pm_session"),
+) -> list[str]:
+    user_id = require_session(session)
+    # 404 (not 403) for both "board doesn't exist" and "you don't own it" - same
+    # not-found-vs-forbidden convention used everywhere else in this API, so a
+    # non-owner can't learn a board exists just by trying to invite someone to it.
+    if not is_board_owner(board_id, user_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
+
+    username = payload.username.strip()
+    if not username:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username is required")
+    if username == user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You already own this board")
+    target = get_user_by_username(username)
+    if target is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No account with that username")
+
+    add_board_member(board_id, target.id)
+    return list_board_members(board_id)
+
+
+@app.delete("/api/boards/{board_id}/members/{username}", response_model=list[str])
+def remove_board_membership(
+    board_id: str,
+    username: str,
+    session: str | None = Cookie(default=None, alias="pm_session"),
+) -> list[str]:
+    user_id = require_session(session)
+    if not is_board_owner(board_id, user_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
+    remove_board_member(board_id, username)
+    return list_board_members(board_id)
 
 
 @app.post("/api/ai/test")

@@ -2,20 +2,23 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { AccountSettings } from "@/components/AccountSettings";
-import { PencilIcon, PlusIcon, TrashIcon } from "@/components/icons";
+import { ShareBoardPanel } from "@/components/ShareBoardPanel";
+import { PencilIcon, PlusIcon, TrashIcon, UsersIcon } from "@/components/icons";
 
 export type BoardSummary = {
   id: string;
   name: string;
   updated_at: string;
+  is_owner: boolean;
 };
 
 type BoardListProps = {
+  currentUsername: string;
   onSelectBoard: (boardId: string, boardName: string) => void;
   onLogout: () => void;
 };
 
-export const BoardList = ({ onSelectBoard, onLogout }: BoardListProps) => {
+export const BoardList = ({ currentUsername, onSelectBoard, onLogout }: BoardListProps) => {
   const [boards, setBoards] = useState<BoardSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [newBoardName, setNewBoardName] = useState("");
@@ -23,6 +26,7 @@ export const BoardList = ({ onSelectBoard, onLogout }: BoardListProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [showAccountSettings, setShowAccountSettings] = useState(false);
+  const [sharingId, setSharingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/boards", { credentials: "include" })
@@ -176,33 +180,53 @@ export const BoardList = ({ onSelectBoard, onLogout }: BoardListProps) => {
                 </button>
               </form>
             ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onSelectBoard(board.id, board.name)}
-                  className="text-left font-display text-lg font-semibold text-[var(--navy-dark)] hover:text-[var(--primary-blue)]"
-                >
-                  {board.name}
-                </button>
-                <div className="flex items-center gap-1">
+              <div className="flex w-full flex-col gap-1">
+                <div className="flex items-center justify-between gap-3">
                   <button
                     type="button"
-                    onClick={() => startRename(board)}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--gray-text)] transition hover:bg-[var(--surface)] hover:text-[var(--navy-dark)]"
-                    aria-label={`Rename ${board.name}`}
+                    onClick={() => onSelectBoard(board.id, board.name)}
+                    className="text-left font-display text-lg font-semibold text-[var(--navy-dark)] hover:text-[var(--primary-blue)]"
                   >
-                    <PencilIcon className="h-4 w-4" />
+                    {board.name}
+                    {!board.is_owner ? (
+                      <span className="ml-2 align-middle text-[10px] font-semibold uppercase tracking-wide text-[var(--gray-text)]">
+                        Shared
+                      </span>
+                    ) : null}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(board.id)}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--gray-text)] transition hover:bg-red-50 hover:text-red-600"
-                    aria-label={`Delete ${board.name}`}
-                  >
-                    <TrashIcon className="h-4 w-4" />
-                  </button>
+                  {board.is_owner ? (
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setSharingId((prev) => (prev === board.id ? null : board.id))}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--gray-text)] transition hover:bg-[var(--surface)] hover:text-[var(--navy-dark)]"
+                        aria-label={`Share ${board.name}`}
+                      >
+                        <UsersIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startRename(board)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--gray-text)] transition hover:bg-[var(--surface)] hover:text-[var(--navy-dark)]"
+                        aria-label={`Rename ${board.name}`}
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(board.id)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--gray-text)] transition hover:bg-red-50 hover:text-red-600"
+                        aria-label={`Delete ${board.name}`}
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
-              </>
+                {sharingId === board.id ? (
+                  <ShareBoardPanel boardId={board.id} ownerUsername={currentUsername} />
+                ) : null}
+              </div>
             )}
           </li>
         ))}

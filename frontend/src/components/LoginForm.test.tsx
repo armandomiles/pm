@@ -6,7 +6,7 @@ describe("LoginForm", () => {
   it("submits valid credentials", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ ok: true })
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ username: "user" }) })
     );
     const onLogin = vi.fn();
 
@@ -15,7 +15,7 @@ describe("LoginForm", () => {
     await userEvent.type(screen.getByLabelText("Password"), "password");
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(onLogin).toHaveBeenCalledOnce();
+    expect(onLogin).toHaveBeenCalledWith("user");
   });
 
   it("shows an error for rejected credentials", async () => {
@@ -33,7 +33,7 @@ describe("LoginForm", () => {
   });
 
   it("switches to signup mode and submits a new account", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ username: "newperson" }) });
     vi.stubGlobal("fetch", fetchMock);
     const onLogin = vi.fn();
 
@@ -43,7 +43,7 @@ describe("LoginForm", () => {
     await userEvent.type(screen.getByLabelText("Password"), "correct-horse");
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
 
-    expect(onLogin).toHaveBeenCalledOnce();
+    expect(onLogin).toHaveBeenCalledWith("newperson");
     expect(fetchMock.mock.calls[0][0]).toBe("/api/auth/signup");
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
       username: "newperson",

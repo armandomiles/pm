@@ -69,6 +69,7 @@ class BoardSummary(BaseModel):
     id: str
     name: str
     updated_at: str
+    is_owner: bool
 
 
 def empty_board() -> Board:
@@ -138,6 +139,16 @@ def initialize_database() -> None:
                 board_json TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS board_members (
+                board_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                added_at TEXT NOT NULL,
+                PRIMARY KEY (board_id, user_id)
             )
             """
         )
@@ -215,19 +226,95 @@ def update_user_password(username: str, new_password: str) -> bool:
 def delete_user_account(username: str) -> bool:
     initialize_database()
     with connect() as connection:
+        owned_board_ids = [
+            row["id"]
+            for row in connection.execute("SELECT id FROM boards WHERE owner_id = ?", (username,)).fetchall()
+        ]
+        for board_id in owned_board_ids:
+            connection.execute("DELETE FROM board_members WHERE board_id = ?", (board_id,))
         connection.execute("DELETE FROM boards WHERE owner_id = ?", (username,))
+        connection.execute("DELETE FROM board_members WHERE user_id = ?", (username,))
         cursor = connection.execute("DELETE FROM users WHERE id = ?", (username,))
         return cursor.rowcount > 0
 
 
-def list_boards(owner_id: str) -> list[BoardSummary]:
+def _board_access(connection: sqlite3.Connection, board_id: str, user_id: str) -> tuple[bool, str | None]:
+    """Returns (has_access, owner_id). has_access is True for the owner or any
+    invited member; owner_id is None if the board doesn't exist at all."""
+    row = connection.execute("SELECT owner_id FROM boards WHERE id = ?", (board_id,)).fetchone()
+    if row is None:
+        return False, None
+    owner_id = row["owner_id"]
+    if owner_id == user_id:
+        return True, owner_id
+    member_row = connection.execute(
+        "SELECT 1 FROM board_members WHERE board_id = ? AND user_id = ?",
+        (board_id, user_id),
+    ).fetchone()
+    return member_row is not None, owner_id
+
+
+def is_board_owner(board_id: str, user_id: str) -> bool:
+    initialize_database()
+    with connect() as connection:
+        row = connection.execute(
+            "SELECT 1 FROM boards WHERE id = ? AND owner_id = ?", (board_id, user_id)
+        ).fetchone()
+    return row is not None
+
+
+def list_board_members(board_id: str) -> list[str]:
+    """Returns every username with access to the board, owner first."""
+    initialize_database()
+    with connect() as connection:
+        owner_row = connection.execute("SELECT owner_id FROM boards WHERE id = ?", (board_id,)).fetchone()
+        if owner_row is None:
+            return []
+        member_rows = connection.execute(
+            "SELECT user_id FROM board_members WHERE board_id = ? ORDER BY added_at ASC",
+            (board_id,),
+        ).fetchall()
+    return [owner_row["owner_id"], *[row["user_id"] for row in member_rows]]
+
+
+def add_board_member(board_id: str, username: str) -> None:
+    initialize_database()
+    now = datetime.now(timezone.utc).isoformat()
+    with connect() as connection:
+        connection.execute(
+            "INSERT OR IGNORE INTO board_members (board_id, user_id, added_at) VALUES (?, ?, ?)",
+            (board_id, username, now),
+        )
+
+
+def remove_board_member(board_id: str, username: str) -> None:
+    initialize_database()
+    with connect() as connection:
+        connection.execute(
+            "DELETE FROM board_members WHERE board_id = ? AND user_id = ?",
+            (board_id, username),
+        )
+
+
+def list_boards(user_id: str) -> list[BoardSummary]:
     initialize_database()
     with connect() as connection:
         rows = connection.execute(
-            "SELECT id, name, updated_at FROM boards WHERE owner_id = ? ORDER BY created_at ASC",
-            (owner_id,),
+            """
+            SELECT id, name, updated_at, 1 AS is_owner FROM boards WHERE owner_id = ?
+            UNION
+            SELECT b.id, b.name, b.updated_at, 0 AS is_owner
+            FROM boards b
+            JOIN board_members m ON m.board_id = b.id
+            WHERE m.user_id = ?
+            ORDER BY updated_at ASC
+            """,
+            (user_id, user_id),
         ).fetchall()
-    return [BoardSummary(id=row["id"], name=row["name"], updated_at=row["updated_at"]) for row in rows]
+    return [
+        BoardSummary(id=row["id"], name=row["name"], updated_at=row["updated_at"], is_owner=bool(row["is_owner"]))
+        for row in rows
+    ]
 
 
 def create_board(owner_id: str, name: str, board: Board) -> BoardSummary:
@@ -239,44 +326,47 @@ def create_board(owner_id: str, name: str, board: Board) -> BoardSummary:
             "INSERT INTO boards (id, owner_id, name, board_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
             (board_id, owner_id, name, board_to_json(board), now, now),
         )
-    return BoardSummary(id=board_id, name=name, updated_at=now)
+    return BoardSummary(id=board_id, name=name, updated_at=now, is_owner=True)
 
 
-def get_board(board_id: str, owner_id: str) -> Board | None:
+def get_board(board_id: str, user_id: str) -> Board | None:
     initialize_database()
     with connect() as connection:
-        row = connection.execute(
-            "SELECT board_json FROM boards WHERE id = ? AND owner_id = ?",
-            (board_id, owner_id),
-        ).fetchone()
-    if row is None:
-        return None
+        has_access, _ = _board_access(connection, board_id, user_id)
+        if not has_access:
+            return None
+        row = connection.execute("SELECT board_json FROM boards WHERE id = ?", (board_id,)).fetchone()
     return board_from_json(row["board_json"])
 
 
-def save_board_content(board_id: str, owner_id: str, board: Board) -> bool:
+def save_board_content(board_id: str, user_id: str, board: Board) -> bool:
     initialize_database()
     now = datetime.now(timezone.utc).isoformat()
     with connect() as connection:
+        has_access, _ = _board_access(connection, board_id, user_id)
+        if not has_access:
+            return False
         cursor = connection.execute(
-            "UPDATE boards SET board_json = ?, updated_at = ? WHERE id = ? AND owner_id = ?",
-            (board_to_json(board), now, board_id, owner_id),
+            "UPDATE boards SET board_json = ?, updated_at = ? WHERE id = ?",
+            (board_to_json(board), now, board_id),
         )
         return cursor.rowcount > 0
 
 
-def rename_board(board_id: str, owner_id: str, name: str) -> BoardSummary | None:
+def rename_board(board_id: str, user_id: str, name: str) -> BoardSummary | None:
     initialize_database()
     now = datetime.now(timezone.utc).isoformat()
     with connect() as connection:
+        has_access, owner_id = _board_access(connection, board_id, user_id)
+        if not has_access:
+            return None
         cursor = connection.execute(
-            "UPDATE boards SET name = ?, updated_at = ? WHERE id = ? AND owner_id = ?",
-            (name, now, board_id, owner_id),
+            "UPDATE boards SET name = ?, updated_at = ? WHERE id = ?",
+            (name, now, board_id),
         )
-        updated = cursor.rowcount > 0
-    if not updated:
-        return None
-    return BoardSummary(id=board_id, name=name, updated_at=now)
+        if cursor.rowcount == 0:
+            return None
+    return BoardSummary(id=board_id, name=name, updated_at=now, is_owner=(owner_id == user_id))
 
 
 def delete_board(board_id: str, owner_id: str) -> bool:
@@ -286,4 +376,7 @@ def delete_board(board_id: str, owner_id: str) -> bool:
             "DELETE FROM boards WHERE id = ? AND owner_id = ?",
             (board_id, owner_id),
         )
-        return cursor.rowcount > 0
+        deleted = cursor.rowcount > 0
+        if deleted:
+            connection.execute("DELETE FROM board_members WHERE board_id = ?", (board_id,))
+        return deleted

@@ -127,3 +127,89 @@ def test_users_cannot_see_each_others_boards(tmp_path, monkeypatch) -> None:
     sign_in()
     assert client.get(f"/api/boards/{rival_board_id}").status_code == 404
     assert client.get(f"/api/boards/{own_board_id}").status_code == 200
+
+
+def test_owner_can_share_a_board_with_another_user(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "board.db"))
+    sign_in()
+    board_id = default_board_id()
+    client.post("/api/auth/signup", json={"username": "teammate", "password": "supersecret"})
+
+    sign_in()
+    added = client.post(f"/api/boards/{board_id}/members", json={"username": "teammate"})
+    assert added.status_code == 201
+    assert added.json() == ["user", "teammate"]
+
+    client.post("/api/auth/login", json={"username": "teammate", "password": "supersecret"})
+    assert client.get(f"/api/boards/{board_id}").status_code == 200
+    shared_boards = client.get("/api/boards").json()
+    assert any(b["id"] == board_id and b["is_owner"] is False for b in shared_boards)
+
+
+def test_shared_member_can_edit_but_not_delete_or_manage_members(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "board.db"))
+    sign_in()
+    board_id = default_board_id()
+    client.post("/api/auth/signup", json={"username": "teammate", "password": "supersecret"})
+    sign_in()
+    client.post(f"/api/boards/{board_id}/members", json={"username": "teammate"})
+
+    client.post("/api/auth/login", json={"username": "teammate", "password": "supersecret"})
+    board = client.get(f"/api/boards/{board_id}").json()
+    board["columns"][0]["title"] = "Edited by teammate"
+    assert client.put(f"/api/boards/{board_id}", json=board).status_code == 200
+    assert client.patch(f"/api/boards/{board_id}", json={"name": "Renamed by teammate"}).status_code == 200
+
+    assert client.delete(f"/api/boards/{board_id}").status_code == 404
+    assert client.post(f"/api/boards/{board_id}/members", json={"username": "user"}).status_code == 404
+    assert client.get(f"/api/boards/{board_id}/members").status_code == 200
+
+
+def test_owner_can_remove_a_member(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "board.db"))
+    sign_in()
+    board_id = default_board_id()
+    client.post("/api/auth/signup", json={"username": "teammate", "password": "supersecret"})
+    sign_in()
+    client.post(f"/api/boards/{board_id}/members", json={"username": "teammate"})
+
+    removed = client.delete(f"/api/boards/{board_id}/members/teammate")
+    assert removed.status_code == 200
+    assert removed.json() == ["user"]
+
+    client.post("/api/auth/login", json={"username": "teammate", "password": "supersecret"})
+    assert client.get(f"/api/boards/{board_id}").status_code == 404
+
+
+def test_non_owner_cannot_manage_membership_of_a_board_they_cannot_see(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "board.db"))
+    sign_in()
+    board_id = default_board_id()
+    client.post("/api/auth/signup", json={"username": "stranger", "password": "supersecret"})
+
+    assert client.post(f"/api/boards/{board_id}/members", json={"username": "stranger"}).status_code == 404
+    assert client.delete(f"/api/boards/{board_id}/members/user").status_code == 404
+    assert client.get(f"/api/boards/{board_id}/members").status_code == 404
+
+
+def test_adding_member_rejects_self_and_unknown_username(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "board.db"))
+    sign_in()
+    board_id = default_board_id()
+
+    assert client.post(f"/api/boards/{board_id}/members", json={"username": "user"}).status_code == 400
+    assert client.post(f"/api/boards/{board_id}/members", json={"username": "nobody"}).status_code == 404
+
+
+def test_deleting_a_board_removes_access_for_its_members(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "board.db"))
+    sign_in()
+    board_id = default_board_id()
+    client.post("/api/auth/signup", json={"username": "teammate", "password": "supersecret"})
+    sign_in()
+    client.post(f"/api/boards/{board_id}/members", json={"username": "teammate"})
+
+    assert client.delete(f"/api/boards/{board_id}").status_code == 204
+
+    client.post("/api/auth/login", json={"username": "teammate", "password": "supersecret"})
+    assert client.get(f"/api/boards/{board_id}").status_code == 404

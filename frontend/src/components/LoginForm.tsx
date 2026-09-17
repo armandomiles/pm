@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 
 type LoginFormProps = {
-  onLogin: () => void;
+  onLogin: (username: string) => void;
 };
 
 export const LoginForm = ({ onLogin }: LoginFormProps) => {
@@ -37,7 +37,8 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
         return;
       }
 
-      onLogin();
+      const data: { username: string } = await response.json();
+      onLogin(data.username);
     } catch {
       setError("Unable to reach the server right now.");
     } finally {

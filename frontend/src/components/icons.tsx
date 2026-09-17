@@ -36,6 +36,24 @@ export const PencilIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+export const UsersIcon = ({ className }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.75}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <circle cx="9" cy="8" r="3" />
+    <path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5" />
+    <path d="M16 8.5a2.5 2.5 0 1 0 0-5" />
+    <path d="M15 14c2.5 0 5 1.5 5.5 4.2" />
+  </svg>
+);
+
 export const PlusIcon = ({ className }: IconProps) => (
   <svg
     viewBox="0 0 24 24"
