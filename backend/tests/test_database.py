@@ -71,9 +71,38 @@ def test_save_board_content_updates_json_and_reports_missing_board() -> None:
     changed = empty_board()
     changed.columns[0].title = "Renamed Column"
 
-    assert save_board_content(summary.id, user.id, changed) is True
+    result, updated_at = save_board_content(summary.id, user.id, changed)
+    assert result == "saved"
+    assert updated_at is not None
     assert get_board(summary.id, user.id).columns[0].title == "Renamed Column"
-    assert save_board_content("missing", user.id, changed) is False
+    assert save_board_content("missing", user.id, changed) == ("not_found", None)
+
+
+def test_save_board_content_rejects_a_stale_if_unmodified_since() -> None:
+    user = create_user("fern", "supersecret")
+    summary = create_board(user.id, "Board", empty_board())
+
+    first_edit = empty_board()
+    first_edit.columns[0].title = "First edit"
+    result, first_updated_at = save_board_content(summary.id, user.id, first_edit)
+    assert result == "saved"
+
+    # A save that correctly references the version it read succeeds.
+    second_edit = empty_board()
+    second_edit.columns[0].title = "Second edit"
+    result, second_updated_at = save_board_content(summary.id, user.id, second_edit, first_updated_at)
+    assert result == "saved"
+    assert second_updated_at is not None
+
+    # A save still referencing the now-stale first_updated_at is rejected, since the
+    # board has since moved on to second_updated_at without this caller seeing it.
+    stale_edit = empty_board()
+    stale_edit.columns[0].title = "Should be rejected"
+    result, updated_at = save_board_content(summary.id, user.id, stale_edit, first_updated_at)
+
+    assert result == "conflict"
+    assert updated_at is None
+    assert get_board(summary.id, user.id).columns[0].title == "Second edit"
 
 
 def test_rename_board_updates_name_and_reports_missing_board() -> None:
@@ -172,7 +201,7 @@ def test_member_can_edit_and_rename_but_only_owner_can_delete() -> None:
 
     changed = empty_board()
     changed.columns[0].title = "Renamed by member"
-    assert save_board_content(summary.id, member.id, changed) is True
+    assert save_board_content(summary.id, member.id, changed)[0] == "saved"
     assert get_board(summary.id, owner.id).columns[0].title == "Renamed by member"
 
     renamed = rename_board(summary.id, member.id, "Renamed by member")

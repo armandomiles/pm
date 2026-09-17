@@ -397,10 +397,27 @@ The original MVP scope above is complete. `AGENTS.md`'s "Limitations" section ex
 - [x] Tests: `kanban.test.ts` (assignee filter predicate), 2 new `KanbanBoard.test.tsx` tests (assign a card, filter by assignee), 1 new backend round-trip test, 1 new Playwright e2e spec.
 - [x] Full suite re-run: 66 backend tests, 47 frontend unit tests, 11 Playwright specs — all passing. Manually verified assignment persists through the real Docker backend (not just mocks).
 
-## Part 17+: candidate future work
+## Part 17: Symmetric optimistic-concurrency guard on manual saves
+
+### Decisions
+
+- Closed the last correctness gap flagged since Part 11: `ai_chat` already discarded a stale AI-generated board update if the board changed mid-request, but a manual `PUT` had no equivalent protection — two racing manual saves (two tabs, a slow connection retried, etc.) would let the last one to arrive silently overwrite the other's work with no warning.
+- Used standard HTTP conditional-request semantics instead of inventing a custom mechanism: `GET /api/boards/{id}` exposes the board's `updated_at` via an `X-Board-Updated-At` response header; `PUT /api/boards/{id}` accepts an optional `If-Unmodified-Since` request header and returns `412 Precondition Failed` if the board was saved again after the value the caller sent. The `Board` JSON body itself is untouched (no `updated_at` field added to it) - that would have rippled a timestamp through the AI-generated board schema, `DEFAULT_BOARD`/`empty_board()`, and every existing test mock that constructs a bare `{columns, cards}` object, for a value that's purely a save-conflict concern, not board content.
+- Both header ends are optional by design: a client (or `ai_chat`'s own `save_board_content` call, which keeps its own separate content-comparison guard) that never sends `If-Unmodified-Since` skips the check entirely, so this is purely additive - no existing behavior changes unless a client opts in by sending the header.
+- `save_board_content` now returns `(result, new_updated_at)` instead of a plain `bool`, where `result` is `"saved" | "not_found" | "conflict"`. This is a breaking signature change to an internal function, not just an additive one - updated the two other call sites (`ai_chat`, which already ignored the return value, and existing `test_database.py` assertions).
+- Frontend: `KanbanBoard` tracks the `updated_at` it last saw (from the load and from each successful save's response header) and sends it back as `If-Unmodified-Since` on every save. A `412` shows a distinct message ("This board changed elsewhere. Reload the page...") rather than the generic save-failure message, since a blind retry would just fail again against the same stale data.
+
+### Checklist
+
+- [x] Backend: `get_board_updated_at`, `save_board_content` result/header changes (`backend/app/database.py`), `X-Board-Updated-At` response header on GET, `If-Unmodified-Since` handling and `412` on PUT (`backend/app/main.py`).
+- [x] Frontend: `KanbanBoard` tracks and sends `updated_at`, distinct conflict error message. Defensive `response.headers?.get(...)` (optional chaining) so mocked `fetch` responses without a `.headers` property - used throughout the existing test suite - keep working unchanged.
+- [x] Tests: 2 new database-level tests (successful versioned save, rejected stale save), 3 new endpoint-level tests (header exposure, conflict rejection preserves the winning edit, no-header-sent still saves), 2 new frontend unit tests (header is sent, conflict message + revert).
+- [x] Full suite re-run: 70 backend tests, 49 frontend unit tests, 11 Playwright specs — all passing. Manually simulated two racing "browser tabs" against the real Docker backend: the first save succeeds, the second (still referencing the pre-first-save version) is rejected with 412, and the first tab's edit survives instead of being silently overwritten.
+
+## Part 18+: candidate future work
 
 Not started. Listed so a future iteration doesn't have to rediscover scope from scratch:
 
-- Symmetric optimistic-concurrency guard on manual board saves (see Part 11's Known gaps).
 - Real roles for board sharing (viewer vs. editor) if "everyone with access can fully edit" ever proves too permissive.
 - Validate `Card.assignee` against actual board membership server-side (currently trusted from the client, matching the light-touch validation already applied to due date/priority).
+- Surface the 412 conflict more actively in the UI (e.g., a "reload" button inline with the error, or an automatic background refetch) rather than just an error message the user has to act on manually.

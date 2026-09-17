@@ -159,6 +159,63 @@ describe("KanbanBoard", () => {
     expect(within(column).queryByText("Gather customer signals")).not.toBeInTheDocument();
   });
 
+  it("sends If-Unmodified-Since on save using the updated_at header from the last load", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      if (typeof url === "string" && url.endsWith("/members")) {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+      if (options?.method === "PUT") {
+        return Promise.resolve({
+          ok: true,
+          headers: { get: () => "2026-01-02T00:00:00+00:00" },
+          json: async () => initialData,
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        headers: { get: () => "2026-01-01T00:00:00+00:00" },
+        json: async () => initialData,
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<KanbanBoard boardId="board-1" onLogout={vi.fn()} />);
+    const column = await screen.findByDisplayValue("Backlog");
+    await userEvent.type(column, "!");
+
+    const saveCalls = fetchMock.mock.calls.filter(([, options]) => options?.method === "PUT");
+    const [, saveOptions] = saveCalls.at(-1) ?? [];
+    expect((saveOptions?.headers as Record<string, string>)["If-Unmodified-Since"]).toBe(
+      "2026-01-01T00:00:00+00:00"
+    );
+  });
+
+  it("shows a conflict message and reverts when a save is rejected as stale", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      if (typeof url === "string" && url.endsWith("/members")) {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+      if (options?.method === "PUT") {
+        return Promise.resolve({ ok: false, status: 412 });
+      }
+      return Promise.resolve({
+        ok: true,
+        headers: { get: () => "2026-01-01T00:00:00+00:00" },
+        json: async () => initialData,
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<KanbanBoard boardId="board-1" onLogout={vi.fn()} />);
+    const column = await screen.findByDisplayValue("Backlog");
+    await userEvent.type(column, "!");
+
+    expect(
+      await screen.findByText("This board changed elsewhere. Reload the page to see the latest version.")
+    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Backlog")).toBeInTheDocument();
+  });
+
   it("loads and saves the board through the API", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({ ok: true, json: async () => initialData })

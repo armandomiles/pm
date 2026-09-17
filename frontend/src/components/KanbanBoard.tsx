@@ -42,6 +42,7 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
   const [saveError, setSaveError] = useState<string | null>(null);
   const [filter, setFilter] = useState<CardFilter>(defaultCardFilter);
   const [members, setMembers] = useState<string[]>([]);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isApiMode) {
@@ -53,6 +54,7 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
         if (!response.ok) {
           throw new Error("Unable to load the board.");
         }
+        setLastUpdatedAt(response.headers?.get("X-Board-Updated-At") ?? null);
         setBoard(await response.json());
       })
       .catch(() => setSaveError("Unable to load the board."))
@@ -73,14 +75,23 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
     setSaveError(null);
     fetch(`/api/boards/${boardId}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(lastUpdatedAt ? { "If-Unmodified-Since": lastUpdatedAt } : {}),
+      },
       credentials: "include",
       body: JSON.stringify(nextBoard),
     }).then((response) => {
       if (!response.ok) {
-        setSaveError("Unable to save the board.");
+        setSaveError(
+          response.status === 412
+            ? "This board changed elsewhere. Reload the page to see the latest version."
+            : "Unable to save the board."
+        );
         setBoard(previousBoard);
+        return;
       }
+      setLastUpdatedAt(response.headers?.get("X-Board-Updated-At") ?? lastUpdatedAt);
     }).catch(() => {
       setSaveError("Unable to save the board.");
       setBoard(previousBoard);

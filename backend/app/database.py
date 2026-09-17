@@ -340,18 +340,47 @@ def get_board(board_id: str, user_id: str) -> Board | None:
     return board_from_json(row["board_json"])
 
 
-def save_board_content(board_id: str, user_id: str, board: Board) -> bool:
+def get_board_updated_at(board_id: str, user_id: str) -> str | None:
+    initialize_database()
+    with connect() as connection:
+        has_access, _ = _board_access(connection, board_id, user_id)
+        if not has_access:
+            return None
+        row = connection.execute("SELECT updated_at FROM boards WHERE id = ?", (board_id,)).fetchone()
+    return row["updated_at"] if row is not None else None
+
+
+SaveBoardResult = Literal["saved", "not_found", "conflict"]
+
+
+def save_board_content(
+    board_id: str,
+    user_id: str,
+    board: Board,
+    if_unmodified_since: str | None = None,
+) -> tuple[SaveBoardResult, str | None]:
+    """Saves board content, returning (result, new_updated_at). new_updated_at is only
+    set when result == "saved". If if_unmodified_since is given and the board's stored
+    updated_at is newer than it, the save is rejected as a conflict rather than silently
+    overwriting a change the caller never saw - the same protection ai_chat already
+    applies to AI-driven updates, extended to manual saves."""
     initialize_database()
     now = datetime.now(timezone.utc).isoformat()
     with connect() as connection:
         has_access, _ = _board_access(connection, board_id, user_id)
         if not has_access:
-            return False
+            return "not_found", None
+        if if_unmodified_since is not None:
+            row = connection.execute("SELECT updated_at FROM boards WHERE id = ?", (board_id,)).fetchone()
+            if row is not None and row["updated_at"] > if_unmodified_since:
+                return "conflict", None
         cursor = connection.execute(
             "UPDATE boards SET board_json = ?, updated_at = ? WHERE id = ?",
             (board_to_json(board), now, board_id),
         )
-        return cursor.rowcount > 0
+        if cursor.rowcount == 0:
+            return "not_found", None
+    return "saved", now
 
 
 def rename_board(board_id: str, user_id: str, name: str) -> BoardSummary | None:

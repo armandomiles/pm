@@ -3,7 +3,7 @@ from secrets import token_urlsafe
 from contextlib import asynccontextmanager
 import json
 
-from fastapi import Cookie, FastAPI, HTTPException, Response, status
+from fastapi import Cookie, FastAPI, Header, HTTPException, Response, status
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -19,6 +19,7 @@ from app.database import (
     delete_user_account,
     empty_board,
     get_board,
+    get_board_updated_at,
     get_user_by_username,
     initialize_database,
     is_board_owner,
@@ -239,12 +240,16 @@ def create_user_board(
 @app.get("/api/boards/{board_id}", response_model=Board)
 def get_user_board(
     board_id: str,
+    response: Response,
     session: str | None = Cookie(default=None, alias="pm_session"),
 ) -> Board:
     user_id = require_session(session)
     board = get_board(board_id, user_id)
     if board is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
+    updated_at = get_board_updated_at(board_id, user_id)
+    if updated_at is not None:
+        response.headers["X-Board-Updated-At"] = updated_at
     return board
 
 
@@ -252,11 +257,21 @@ def get_user_board(
 def update_user_board(
     board_id: str,
     board: Board,
+    response: Response,
     session: str | None = Cookie(default=None, alias="pm_session"),
+    if_unmodified_since: str | None = Header(default=None, alias="If-Unmodified-Since"),
 ) -> Board:
     user_id = require_session(session)
-    if not save_board_content(board_id, user_id, board):
+    result, updated_at = save_board_content(board_id, user_id, board, if_unmodified_since)
+    if result == "not_found":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Board not found")
+    if result == "conflict":
+        raise HTTPException(
+            status_code=status.HTTP_412_PRECONDITION_FAILED,
+            detail="This board was changed elsewhere. Reload to see the latest version before saving.",
+        )
+    if updated_at is not None:
+        response.headers["X-Board-Updated-At"] = updated_at
     return board
 
 

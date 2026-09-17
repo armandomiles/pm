@@ -62,6 +62,66 @@ def test_board_is_created_and_persisted_as_json(tmp_path, monkeypatch) -> None:
     assert '"title":"Queued"' in snapshot[0]
 
 
+def test_board_get_exposes_updated_at_header(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "board.db"))
+    sign_in()
+    board_id = default_board_id()
+
+    response = client.get(f"/api/boards/{board_id}")
+
+    assert response.headers.get("x-board-updated-at")
+
+
+def test_board_put_rejects_a_stale_if_unmodified_since(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "board.db"))
+    sign_in()
+    board_id = default_board_id()
+
+    initial = client.get(f"/api/boards/{board_id}")
+    stale_updated_at = initial.headers["x-board-updated-at"]
+
+    first_edit = initial.json()
+    first_edit["columns"][0]["title"] = "First edit"
+    first_save = client.put(
+        f"/api/boards/{board_id}",
+        json=first_edit,
+        headers={"If-Unmodified-Since": stale_updated_at},
+    )
+    assert first_save.status_code == 200
+    fresh_updated_at = first_save.headers["x-board-updated-at"]
+    assert fresh_updated_at != stale_updated_at
+
+    stale_edit = first_edit.copy()
+    stale_edit["columns"][0]["title"] = "Should be rejected"
+    conflict = client.put(
+        f"/api/boards/{board_id}",
+        json=stale_edit,
+        headers={"If-Unmodified-Since": stale_updated_at},
+    )
+
+    assert conflict.status_code == 412
+    assert client.get(f"/api/boards/{board_id}").json()["columns"][0]["title"] == "First edit"
+
+    second_save = client.put(
+        f"/api/boards/{board_id}",
+        json=stale_edit,
+        headers={"If-Unmodified-Since": fresh_updated_at},
+    )
+    assert second_save.status_code == 200
+    assert client.get(f"/api/boards/{board_id}").json()["columns"][0]["title"] == "Should be rejected"
+
+
+def test_board_put_without_if_unmodified_since_always_saves(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "board.db"))
+    sign_in()
+    board_id = default_board_id()
+
+    board = client.get(f"/api/boards/{board_id}").json()
+    board["columns"][0]["title"] = "No precondition sent"
+
+    assert client.put(f"/api/boards/{board_id}", json=board).status_code == 200
+
+
 def test_board_rejects_invalid_card_references(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "board.db"))
     sign_in()
