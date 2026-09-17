@@ -314,11 +314,29 @@ The original MVP scope above is complete. `AGENTS.md`'s "Limitations" section ex
 - No card metadata beyond title/details (no due dates, labels, assignees, comments) — candidate for Part 12.
 - No account settings (change password, delete account).
 
-## Part 12+: candidate future work
+## Part 12: Card editing and due date / priority metadata
+
+### Decisions
+
+- Fixed a long-standing gap flagged in `docs/review1.md`: `AGENTS.md` requires cards to be "moved with drag and drop, and edited," but only add/delete existed in the UI. Cards can now be edited in place (title, details, due date, priority) via a pencil icon on each card, matching the existing trash-icon affordance.
+- Added optional `due_date` (ISO `YYYY-MM-DD`, stored with a `dueDate` JSON alias to match the existing `cardIds`-style camelCase convention) and `priority` (`low`/`medium`/`high`, a plain `Literal` — no custom validator needed) to the `Card` model. Both are optional so existing stored boards deserialize unchanged.
+- No new backend endpoints: card edits go through the existing full-board `PUT /api/boards/{id}` the frontend already uses for every board mutation. `strict_json_schema`'s existing recursive walk automatically covers the two new `Card` fields for the AI chat structured-output schema — no changes needed there.
+- Editing a card temporarily drops its drag-and-drop listeners (rather than trying to distinguish click-to-edit from a zero-movement drag start) so interacting with the edit form's date/select inputs can never be misread as a drag gesture.
+- Priority is shown as a small pill reusing the existing four-color palette (purple for high, yellow for medium, neutral gray for low) rather than introducing new brand colors. An overdue due date (past today, any column) renders in the same red already used for save-error text.
+
+### Checklist
+
+- [x] Backend: `Card.due_date`/`Card.priority` fields (`backend/app/database.py`).
+- [x] Frontend: `CardPriority` type, `isOverdue`/`formatDueDate` helpers (`src/lib/kanban.ts`); shared `CardMeta` badge component; inline edit mode in `KanbanCard`; due date + priority inputs in `NewCardForm`; wiring through `KanbanColumn`/`KanbanBoard`.
+- [x] Tests: `kanban.test.ts` (`isOverdue`/`formatDueDate`), `KanbanBoard.test.tsx` (edit + cancel-edit flows), `kanban.spec.ts` e2e (edit a card's title/priority end to end).
+- [x] Full suite re-run after the change: 38 backend tests, 25 frontend unit tests, 6 Playwright specs — all passing.
+
+## Part 13+: candidate future work
 
 Not started. Listed so a future iteration doesn't have to rediscover scope from scratch:
 
-- Card metadata: due dates, priority/labels, assignee (meaningful now that boards could eventually be shared).
-- Search/filter across a board's cards.
+- Card assignee (meaningful once boards can be shared with more than one user).
+- Search/filter across a board's cards (by title, priority, due date, overdue-only).
 - Board sharing / collaborators (would need a `board_members` table and a real authorization model beyond "owner_id match").
-- Symmetric optimistic-concurrency guard on manual board saves (see Known gaps above).
+- Symmetric optimistic-concurrency guard on manual board saves (see Part 11's Known gaps).
+- Account settings (change password, delete account) — noted as a gap in Part 11.

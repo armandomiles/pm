@@ -114,6 +114,22 @@ test("creates a new board from the board list", async ({ page }) => {
   await expect(page.getByText("Marketing Launch", { exact: true })).toBeVisible();
 });
 
+test("edits a card's title and priority", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/");
+  await signIn(page);
+  const card = page.getByTestId("card-card-1");
+
+  await card.getByRole("button", { name: /edit align roadmap themes/i }).click();
+  const titleInput = card.getByLabel("Card title");
+  await titleInput.fill("Renamed via e2e");
+  await card.getByLabel("Priority").selectOption("high");
+  await card.getByRole("button", { name: "Save" }).click();
+
+  await expect(page.getByText("Renamed via e2e")).toBeVisible();
+  await expect(card.getByText("High")).toBeVisible();
+});
+
 test("navigates back to the board list", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");

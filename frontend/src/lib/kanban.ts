@@ -1,7 +1,11 @@
+export type CardPriority = "low" | "medium" | "high";
+
 export type Card = {
   id: string;
   title: string;
   details: string;
+  dueDate?: string | null;
+  priority?: CardPriority | null;
 };
 
 export type Column = {
@@ -13,6 +17,22 @@ export type Column = {
 export type BoardData = {
   columns: Column[];
   cards: Record<string, Card>;
+};
+
+export const isOverdue = (dueDate: string | null | undefined): boolean => {
+  if (!dueDate) {
+    return false;
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(`${dueDate}T00:00:00`) < today;
+};
+
+export const formatDueDate = (dueDate: string): string => {
+  return new Date(`${dueDate}T00:00:00`).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 };
 
 export const initialData: BoardData = {

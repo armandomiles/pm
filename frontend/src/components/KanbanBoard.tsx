@@ -14,7 +14,8 @@ import {
 import { KanbanColumn } from "@/components/KanbanColumn";
 import { KanbanCardPreview } from "@/components/KanbanCardPreview";
 import { ChatSidebar } from "@/components/ChatSidebar";
-import { createId, initialData, moveCard, type BoardData } from "@/lib/kanban";
+import { createId, initialData, moveCard, type BoardData, type CardPriority } from "@/lib/kanban";
+import type { CardEdits } from "@/components/KanbanCard";
 
 type KanbanBoardProps = {
   boardId?: string;
@@ -105,19 +106,35 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
     });
   };
 
-  const handleAddCard = (columnId: string, title: string, details: string) => {
+  const handleAddCard = (
+    columnId: string,
+    title: string,
+    details: string,
+    dueDate: string | null,
+    priority: CardPriority | null
+  ) => {
     const id = createId("card");
     updateBoard({
       ...board,
       cards: {
         ...board.cards,
-        [id]: { id, title, details: details || "No details yet." },
+        [id]: { id, title, details: details || "No details yet.", dueDate, priority },
       },
       columns: board.columns.map((column) =>
         column.id === columnId
           ? { ...column, cardIds: [...column.cardIds, id] }
           : column
       ),
+    });
+  };
+
+  const handleEditCard = (cardId: string, edits: CardEdits) => {
+    updateBoard({
+      ...board,
+      cards: {
+        ...board.cards,
+        [cardId]: { ...board.cards[cardId], ...edits },
+      },
     });
   };
 
@@ -210,6 +227,7 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
                 onRename={handleRenameColumn}
                 onAddCard={handleAddCard}
                 onDeleteCard={handleDeleteCard}
+                onEditCard={handleEditCard}
               />
             ))}
           </section>

@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { KanbanBoard } from "@/components/KanbanBoard";
-import { initialData } from "@/lib/kanban";
+import { formatDueDate, initialData } from "@/lib/kanban";
 
 const getFirstColumn = () => screen.getAllByTestId(/column-/i)[0];
 
@@ -43,6 +43,38 @@ describe("KanbanBoard", () => {
     await userEvent.click(deleteButton);
 
     expect(within(column).queryByText("New card")).not.toBeInTheDocument();
+  });
+
+  it("edits a card's title, details, due date, and priority", async () => {
+    render(<KanbanBoard />);
+    const column = getFirstColumn();
+
+    await userEvent.click(within(column).getByRole("button", { name: /edit align roadmap themes/i }));
+    const titleInput = within(column).getByLabelText("Card title");
+    await userEvent.clear(titleInput);
+    await userEvent.type(titleInput, "Updated title");
+    await userEvent.type(within(column).getByLabelText("Due date"), "2026-12-31");
+    await userEvent.selectOptions(within(column).getByLabelText("Priority"), "high");
+    await userEvent.click(within(column).getByRole("button", { name: "Save" }));
+
+    expect(within(column).getByText("Updated title")).toBeInTheDocument();
+    expect(within(column).queryByText("Align roadmap themes")).not.toBeInTheDocument();
+    expect(within(column).getByText("High")).toBeInTheDocument();
+    expect(within(column).getByText(`Due ${formatDueDate("2026-12-31")}`)).toBeInTheDocument();
+  });
+
+  it("cancels a card edit without applying changes", async () => {
+    render(<KanbanBoard />);
+    const column = getFirstColumn();
+
+    await userEvent.click(within(column).getByRole("button", { name: /edit align roadmap themes/i }));
+    const titleInput = within(column).getByLabelText("Card title");
+    await userEvent.clear(titleInput);
+    await userEvent.type(titleInput, "Should not save");
+    await userEvent.click(within(column).getByRole("button", { name: "Cancel" }));
+
+    expect(within(column).getByText("Align roadmap themes")).toBeInTheDocument();
+    expect(within(column).queryByText("Should not save")).not.toBeInTheDocument();
   });
 
   it("loads and saves the board through the API", async () => {

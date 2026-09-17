@@ -2,6 +2,7 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, ValidationError, model_validator
@@ -27,6 +28,10 @@ class Card(BaseModel):
     id: str
     title: str
     details: str
+    due_date: str | None = Field(default=None, alias="dueDate")
+    priority: Literal["low", "medium", "high"] | None = None
+
+    model_config = {"populate_by_name": True}
 
 
 class Column(BaseModel):
