@@ -348,11 +348,25 @@ The original MVP scope above is complete. `AGENTS.md`'s "Limitations" section ex
 - [x] Tests: `kanban.test.ts` (filter predicate), `KanbanBoard.test.tsx` (search, priority filter, clear filters), `kanban.spec.ts` e2e (search end to end).
 - [x] Full suite re-run: 38 backend tests (unaffected, no backend changes), 35 frontend unit tests, 7 Playwright specs — all passing. Verified visually via screenshots that the filter bar matches the existing design language and the empty/filtered states render correctly.
 
-## Part 14+: candidate future work
+## Part 14: Account settings (change password, delete account)
+
+### Decisions
+
+- Added `PUT /api/auth/password` (requires the correct current password, enforces the same `MIN_PASSWORD_LENGTH` as signup) and `DELETE /api/auth/account` (requires the correct password, cascades to delete every board the user owns, invalidates every active session for that user - not just the one making the request - and clears the cookie).
+- **Found and fixed a real bug while building this**: `_ensure_bootstrap_user` (now `_seed_bootstrap_user`) decided whether to seed the hardcoded `user`/`password` account by checking "are there currently zero users" rather than "was the `users` table just created." That meant deleting the *last* account on the system would silently resurrect the bootstrap credential on the very next request - anyone could delete their account and immediately log back in as `user`/`password` with a fresh sample board. Fixed by checking `sqlite_master` for whether the `users` table already existed before seeding, so bootstrap seeding now runs exactly once, at true first-ever initialization, regardless of how many accounts are later deleted. Verified against the real (non-mocked) Docker backend, not just pytest, since this is exactly the kind of bug that a mocked-DB test could paper over.
+- Frontend: new `AccountSettings` component (change-password form + a danger-zone delete-account confirmation requiring the password again), toggled from a button on the board list screen next to "Log out". Reuses the existing `onLogout` callback for "account deleted" - the backend already cleared the cookie/session, so calling the ordinary logout handler is correct and avoids a second bespoke code path.
+
+### Checklist
+
+- [x] Backend: `update_user_password`/`delete_user_account` (`backend/app/database.py`), `PUT /api/auth/password`/`DELETE /api/auth/account` routes, the bootstrap-seeding fix.
+- [x] Frontend: `AccountSettings` component, wired into `BoardList`.
+- [x] Tests: 11 new backend tests (endpoint + database level, including the resurrection-bug regression case), 12 new frontend unit tests (`AccountSettings.test.tsx` + `BoardList` toggle), 2 new Playwright e2e specs.
+- [x] Full suite re-run: 49 backend tests, 42 frontend unit tests, 9 Playwright specs — all passing. Also manually smoke-tested change-password and delete-account against the real Docker container, including the specific resurrection-bug regression check.
+
+## Part 15+: candidate future work
 
 Not started. Listed so a future iteration doesn't have to rediscover scope from scratch:
 
 - Card assignee (meaningful once boards can be shared with more than one user).
 - Board sharing / collaborators (would need a `board_members` table and a real authorization model beyond "owner_id match").
 - Symmetric optimistic-concurrency guard on manual board saves (see Part 11's Known gaps).
-- Account settings (change password, delete account) — noted as a gap in Part 11.

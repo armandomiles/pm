@@ -57,9 +57,10 @@ The backend must validate that every `cardIds` entry references a card in `cards
 
 ## Bootstrapping and account creation
 
-- On a fresh database, `initialize_database()` seeds the original hardcoded `user` / `password` account with one board named "My Board" containing the original sample cards, so existing local setups and tests keep working unchanged.
+- On a fresh database (the `users` table does not exist yet), `initialize_database()` seeds the original hardcoded `user` / `password` account with one board named "My Board" containing the original sample cards, so existing local setups and tests keep working unchanged. This check is "does the `users` table already exist," not "are there currently zero users" — the latter would resurrect the bootstrap account the moment someone deleted the last user via `DELETE /api/auth/account`, which was a real bug caught while building account deletion (see `docs/PLAN.md` Part 14).
 - `POST /api/auth/signup` creates a new account and one empty board (same five fixed columns, no cards) named "My Board". Username must be non-blank and unique; password must be at least 8 characters.
 - New boards created via `POST /api/boards` start with the same five fixed, empty columns. Columns remain fixed-but-renamable per board, matching the original single-board business rule — the "fixed columns" decision was per-board, not per-installation.
+- `PUT /api/auth/password` changes the current user's password (requires the correct current password). `DELETE /api/auth/account` requires the correct password, deletes the user row and every board they own, and invalidates every active session for that user.
 
 ## Initialization and limitations
 

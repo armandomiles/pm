@@ -15,6 +15,7 @@ from app.database import (
     create_board,
     create_user,
     delete_board,
+    delete_user_account,
     empty_board,
     get_board,
     get_user_by_username,
@@ -22,6 +23,7 @@ from app.database import (
     list_boards,
     rename_board,
     save_board_content,
+    update_user_password,
 )
 from app.security import verify_password
 
@@ -49,6 +51,15 @@ class LoginRequest(BaseModel):
 
 class SignupRequest(BaseModel):
     username: str
+    password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class DeleteAccountRequest(BaseModel):
     password: str
 
 
@@ -161,6 +172,42 @@ def current_user(
 ) -> dict[str, str]:
     user_id = require_session(session)
     return {"username": user_id}
+
+
+@app.put("/api/auth/password")
+def change_password(
+    payload: ChangePasswordRequest,
+    session: str | None = Cookie(default=None, alias="pm_session"),
+) -> dict[str, str]:
+    user_id = require_session(session)
+    user = get_user_by_username(user_id)
+    if user is None or not verify_password(payload.current_password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Current password is incorrect")
+    if len(payload.new_password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"New password must be at least {MIN_PASSWORD_LENGTH} characters",
+        )
+    update_user_password(user_id, payload.new_password)
+    return {"status": "ok"}
+
+
+@app.delete("/api/auth/account")
+def delete_account(
+    payload: DeleteAccountRequest,
+    response: Response,
+    session: str | None = Cookie(default=None, alias="pm_session"),
+) -> dict[str, str]:
+    user_id = require_session(session)
+    user = get_user_by_username(user_id)
+    if user is None or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Password is incorrect")
+
+    delete_user_account(user_id)
+    for token in [token for token, owner in active_sessions.items() if owner == user_id]:
+        active_sessions.pop(token, None)
+    response.delete_cookie("pm_session")
+    return {"status": "ok"}
 
 
 @app.get("/api/boards", response_model=list[BoardSummary])

@@ -153,3 +153,41 @@ test("navigates back to the board list", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "Choose a board", exact: true })).toBeVisible();
 });
+
+test("changes the account password", async ({ page }) => {
+  await mockApi(page);
+  await page.route("**/api/auth/password", (route) =>
+    route.fulfill({ status: 200, json: { status: "ok" } })
+  );
+  await page.goto("/");
+  await page.getByLabel("Username").fill("user");
+  await page.getByLabel("Password").fill("password");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("heading", { name: "Choose a board", exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Account settings" }).click();
+  await page.getByLabel("Current password").fill("password");
+  await page.getByLabel("New password").fill("new-password-123");
+  await page.getByRole("button", { name: "Update password" }).click();
+
+  await expect(page.getByText("Password updated.")).toBeVisible();
+});
+
+test("deletes the account after confirming the password", async ({ page }) => {
+  await mockApi(page);
+  await page.route("**/api/auth/account", (route) =>
+    route.fulfill({ status: 200, json: { status: "ok" } })
+  );
+  await page.goto("/");
+  await page.getByLabel("Username").fill("user");
+  await page.getByLabel("Password").fill("password");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("heading", { name: "Choose a board", exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Account settings" }).click();
+  await page.getByRole("button", { name: "Delete account" }).click();
+  await page.getByLabel("Confirm password to delete account").fill("password");
+  await page.getByRole("button", { name: "Permanently delete my account" }).click();
+
+  await expect(page.getByRole("heading", { name: "Sign in to Kanban Studio", exact: true })).toBeVisible();
+});

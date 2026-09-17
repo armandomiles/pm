@@ -4,6 +4,7 @@ from app.database import (
     create_board,
     create_user,
     delete_board,
+    delete_user_account,
     empty_board,
     get_board,
     get_user_by_username,
@@ -11,7 +12,9 @@ from app.database import (
     list_boards,
     rename_board,
     save_board_content,
+    update_user_password,
 )
+from app.security import verify_password
 
 
 def test_initialize_database_seeds_bootstrap_user_and_board() -> None:
@@ -87,3 +90,30 @@ def test_delete_board_removes_it_and_reports_missing_board() -> None:
     assert delete_board(summary.id, user.id) is True
     assert get_board(summary.id, user.id) is None
     assert delete_board(summary.id, user.id) is False
+
+
+def test_update_user_password_changes_the_stored_hash() -> None:
+    user = create_user("hank", "original-password")
+
+    assert update_user_password(user.id, "new-password") is True
+
+    updated = get_user_by_username("hank")
+    assert not verify_password("original-password", updated.password_hash)
+    assert verify_password("new-password", updated.password_hash)
+
+
+def test_update_user_password_reports_missing_user() -> None:
+    assert update_user_password("nobody", "new-password") is False
+
+
+def test_delete_user_account_removes_user_and_their_boards() -> None:
+    user = create_user("iris", "supersecret")
+    summary = create_board(user.id, "Board", empty_board())
+
+    assert delete_user_account(user.id) is True
+    assert get_user_by_username("iris") is None
+    assert get_board(summary.id, user.id) is None
+
+
+def test_delete_user_account_reports_missing_user() -> None:
+    assert delete_user_account("nobody") is False

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { AccountSettings } from "@/components/AccountSettings";
 import { PencilIcon, PlusIcon, TrashIcon } from "@/components/icons";
 
 export type BoardSummary = {
@@ -21,6 +22,7 @@ export const BoardList = ({ onSelectBoard, onLogout }: BoardListProps) => {
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [showAccountSettings, setShowAccountSettings] = useState(false);
 
   useEffect(() => {
     fetch("/api/boards", { credentials: "include" })
@@ -121,14 +123,25 @@ export const BoardList = ({ onSelectBoard, onLogout }: BoardListProps) => {
             Choose a board
           </h1>
         </div>
-        <button
-          type="button"
-          onClick={onLogout}
-          className="rounded-full border border-[var(--stroke)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--gray-text)] transition hover:text-[var(--navy-dark)]"
-        >
-          Log out
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setShowAccountSettings((prev) => !prev)}
+            className="rounded-full border border-[var(--stroke)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--gray-text)] transition hover:text-[var(--navy-dark)]"
+          >
+            {showAccountSettings ? "Hide account settings" : "Account settings"}
+          </button>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="rounded-full border border-[var(--stroke)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--gray-text)] transition hover:text-[var(--navy-dark)]"
+          >
+            Log out
+          </button>
+        </div>
       </div>
+
+      {showAccountSettings ? <AccountSettings onAccountDeleted={onLogout} /> : null}
 
       {error ? <p className="text-sm font-semibold text-red-700">{error}</p> : null}
 

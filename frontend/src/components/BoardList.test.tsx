@@ -88,4 +88,22 @@ describe("BoardList", () => {
 
     expect(await screen.findByText("Renamed Board")).toBeInTheDocument();
   });
+
+  it("toggles the account settings panel", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => boards })
+    );
+
+    render(<BoardList onSelectBoard={vi.fn()} onLogout={vi.fn()} />);
+    await screen.findByText("My Board");
+
+    expect(screen.queryByRole("heading", { name: "Account settings" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Account settings" }));
+    expect(screen.getByRole("heading", { name: "Account settings" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Hide account settings" }));
+    expect(screen.queryByRole("heading", { name: "Account settings" })).not.toBeInTheDocument();
+  });
 });

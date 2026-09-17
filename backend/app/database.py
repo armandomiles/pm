@@ -113,6 +113,12 @@ def connect() -> sqlite3.Connection:
 
 def initialize_database() -> None:
     with connect() as connection:
+        users_table_existed = (
+            connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'users'"
+            ).fetchone()
+            is not None
+        )
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
@@ -135,16 +141,17 @@ def initialize_database() -> None:
             )
             """
         )
-        _ensure_bootstrap_user(connection)
+        # Seed exactly once, the moment the users table is first created - not merely
+        # "whenever no users currently exist" - so deleting the last account doesn't
+        # silently resurrect the bootstrap user/password credential on the next request.
+        if not users_table_existed:
+            _seed_bootstrap_user(connection)
 
 
-def _ensure_bootstrap_user(connection: sqlite3.Connection) -> None:
+def _seed_bootstrap_user(connection: sqlite3.Connection) -> None:
     """Seed the original hardcoded user/password account (with its sample board) on a
     fresh database, so existing local setups and the documented MVP credential keep
     working after the move to real per-user accounts."""
-    count = connection.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-    if count > 0:
-        return
     now = datetime.now(timezone.utc).isoformat()
     connection.execute(
         "INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)",
@@ -192,6 +199,25 @@ def get_user_by_username(username: str) -> User | None:
     if row is None:
         return None
     return User(id=row["id"], username=row["username"], password_hash=row["password_hash"], created_at=row["created_at"])
+
+
+def update_user_password(username: str, new_password: str) -> bool:
+    initialize_database()
+    password_hash = hash_password(new_password)
+    with connect() as connection:
+        cursor = connection.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (password_hash, username),
+        )
+        return cursor.rowcount > 0
+
+
+def delete_user_account(username: str) -> bool:
+    initialize_database()
+    with connect() as connection:
+        connection.execute("DELETE FROM boards WHERE owner_id = ?", (username,))
+        cursor = connection.execute("DELETE FROM users WHERE id = ?", (username,))
+        return cursor.rowcount > 0
 
 
 def list_boards(owner_id: str) -> list[BoardSummary]:

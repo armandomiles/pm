@@ -106,3 +106,84 @@ def test_new_account_starts_with_one_empty_board(tmp_path, monkeypatch) -> None:
         "Review",
         "Done",
     ]
+
+
+def test_change_password_requires_authentication() -> None:
+    response = client.put(
+        "/api/auth/password",
+        json={"current_password": "password", "new_password": "new-password-123"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_change_password_rejects_incorrect_current_password(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "pw.db"))
+    client.post("/api/auth/login", json={"username": "user", "password": "password"})
+
+    response = client.put(
+        "/api/auth/password",
+        json={"current_password": "wrong", "new_password": "new-password-123"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_change_password_rejects_short_new_password(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "pw.db"))
+    client.post("/api/auth/login", json={"username": "user", "password": "password"})
+
+    response = client.put(
+        "/api/auth/password",
+        json={"current_password": "password", "new_password": "short"},
+    )
+
+    assert response.status_code == 400
+
+
+def test_change_password_updates_credential(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "pw.db"))
+    client.post("/api/auth/login", json={"username": "user", "password": "password"})
+
+    response = client.put(
+        "/api/auth/password",
+        json={"current_password": "password", "new_password": "new-password-123"},
+    )
+    assert response.status_code == 200
+
+    client.post("/api/auth/logout")
+    assert client.post(
+        "/api/auth/login", json={"username": "user", "password": "password"}
+    ).status_code == 401
+    assert client.post(
+        "/api/auth/login", json={"username": "user", "password": "new-password-123"}
+    ).status_code == 200
+
+
+def test_delete_account_requires_authentication() -> None:
+    response = client.request("DELETE", "/api/auth/account", json={"password": "password"})
+
+    assert response.status_code == 401
+
+
+def test_delete_account_rejects_incorrect_password(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "delete.db"))
+    client.post("/api/auth/login", json={"username": "user", "password": "password"})
+
+    response = client.request("DELETE", "/api/auth/account", json={"password": "wrong"})
+
+    assert response.status_code == 401
+    assert client.get("/api/auth/me").status_code == 200
+
+
+def test_delete_account_removes_user_boards_and_session(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "delete.db"))
+    client.post("/api/auth/login", json={"username": "user", "password": "password"})
+
+    response = client.request("DELETE", "/api/auth/account", json={"password": "password"})
+
+    assert response.status_code == 200
+    assert client.get("/api/auth/me").status_code == 401
+    assert client.post(
+        "/api/auth/login", json={"username": "user", "password": "password"}
+    ).status_code == 401
