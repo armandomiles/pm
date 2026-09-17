@@ -9,13 +9,15 @@ type KanbanColumnProps = {
   column: Column;
   cards: Card[];
   totalCardCount: number;
+  members?: string[];
   onRename: (columnId: string, title: string) => void;
   onAddCard: (
     columnId: string,
     title: string,
     details: string,
     dueDate: string | null,
-    priority: CardPriority | null
+    priority: CardPriority | null,
+    assignee: string | null
   ) => void;
   onDeleteCard: (columnId: string, cardId: string) => void;
   onEditCard: (cardId: string, edits: CardEdits) => void;
@@ -25,6 +27,7 @@ export const KanbanColumn = ({
   column,
   cards,
   totalCardCount,
+  members = [],
   onRename,
   onAddCard,
   onDeleteCard,
@@ -64,6 +67,7 @@ export const KanbanColumn = ({
             <KanbanCard
               key={card.id}
               card={card}
+              members={members}
               onDelete={(cardId) => onDeleteCard(column.id, cardId)}
               onEdit={onEditCard}
             />
@@ -76,8 +80,9 @@ export const KanbanColumn = ({
         )}
       </div>
       <NewCardForm
-        onAdd={(title, details, dueDate, priority) =>
-          onAddCard(column.id, title, details, dueDate, priority)
+        members={members}
+        onAdd={(title, details, dueDate, priority, assignee) =>
+          onAddCard(column.id, title, details, dueDate, priority, assignee)
         }
       />
     </section>

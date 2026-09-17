@@ -6,6 +6,7 @@ export type Card = {
   details: string;
   dueDate?: string | null;
   priority?: CardPriority | null;
+  assignee?: string | null;
 };
 
 export type Column = {
@@ -39,22 +40,27 @@ export type CardFilter = {
   text: string;
   priority: CardPriority | "all";
   overdueOnly: boolean;
+  assignee: string | "all";
 };
 
 export const defaultCardFilter: CardFilter = {
   text: "",
   priority: "all",
   overdueOnly: false,
+  assignee: "all",
 };
 
 export const isCardFilterActive = (filter: CardFilter): boolean =>
-  filter.text.trim() !== "" || filter.priority !== "all" || filter.overdueOnly;
+  filter.text.trim() !== "" || filter.priority !== "all" || filter.overdueOnly || filter.assignee !== "all";
 
 export const matchesCardFilter = (card: Card, filter: CardFilter): boolean => {
   if (filter.priority !== "all" && card.priority !== filter.priority) {
     return false;
   }
   if (filter.overdueOnly && !isOverdue(card.dueDate)) {
+    return false;
+  }
+  if (filter.assignee !== "all" && card.assignee !== filter.assignee) {
     return false;
   }
   const text = filter.text.trim().toLowerCase();

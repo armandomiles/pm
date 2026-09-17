@@ -106,6 +106,24 @@ def test_create_list_rename_and_delete_board(tmp_path, monkeypatch) -> None:
     assert client.get(f"/api/boards/{board_id}").status_code == 404
 
 
+def test_board_round_trips_card_metadata_fields(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "board.db"))
+    sign_in()
+    board_id = default_board_id()
+    board = client.get(f"/api/boards/{board_id}").json()
+    card_id = board["columns"][0]["cardIds"][0]
+    board["cards"][card_id]["dueDate"] = "2026-12-31"
+    board["cards"][card_id]["priority"] = "high"
+    board["cards"][card_id]["assignee"] = "user"
+
+    assert client.put(f"/api/boards/{board_id}", json=board).status_code == 200
+
+    saved_card = client.get(f"/api/boards/{board_id}").json()["cards"][card_id]
+    assert saved_card["dueDate"] == "2026-12-31"
+    assert saved_card["priority"] == "high"
+    assert saved_card["assignee"] == "user"
+
+
 def test_create_board_rejects_blank_name(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("PROJECT_DB_PATH", str(tmp_path / "board.db"))
     sign_in()

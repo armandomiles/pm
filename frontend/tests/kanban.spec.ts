@@ -144,6 +144,26 @@ test("edits a card's title and priority", async ({ page }) => {
   await expect(card.getByText("High")).toBeVisible();
 });
 
+test("assigns a card to a board member and filters by assignee", async ({ page }) => {
+  await mockApi(page);
+  await page.route(`**/api/boards/${BOARD_ID}/members`, (route) =>
+    route.fulfill({ status: 200, json: ["user", "teammate"] })
+  );
+  await page.goto("/");
+  await signIn(page);
+  const card = page.getByTestId("card-card-1");
+
+  await card.getByRole("button", { name: /edit align roadmap themes/i }).click();
+  await card.getByLabel("Assignee").selectOption("teammate");
+  await card.getByRole("button", { name: "Save" }).click();
+
+  await expect(card.getByText("@teammate")).toBeVisible();
+
+  await page.getByLabel("Filter by assignee").selectOption("teammate");
+  await expect(page.getByText("Align roadmap themes")).toBeVisible();
+  await expect(page.getByText("Gather customer signals")).not.toBeVisible();
+});
+
 test("navigates back to the board list", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");

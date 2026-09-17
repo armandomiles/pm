@@ -30,6 +30,7 @@ class Card(BaseModel):
     details: str
     due_date: str | None = Field(default=None, alias="dueDate")
     priority: Literal["low", "medium", "high"] | None = None
+    assignee: str | None = None
 
     model_config = {"populate_by_name": True}
 

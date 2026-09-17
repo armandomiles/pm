@@ -65,6 +65,7 @@ describe("isCardFilterActive", () => {
     expect(isCardFilterActive({ ...defaultCardFilter, text: "foo" })).toBe(true);
     expect(isCardFilterActive({ ...defaultCardFilter, priority: "high" })).toBe(true);
     expect(isCardFilterActive({ ...defaultCardFilter, overdueOnly: true })).toBe(true);
+    expect(isCardFilterActive({ ...defaultCardFilter, assignee: "user" })).toBe(true);
   });
 });
 
@@ -75,6 +76,7 @@ describe("matchesCardFilter", () => {
     details: "Draft quarterly themes with impact statements.",
     dueDate: "2000-01-01",
     priority: "high",
+    assignee: "user",
   };
 
   it("matches everything under the default filter", () => {
@@ -99,12 +101,18 @@ describe("matchesCardFilter", () => {
     ).toBe(false);
   });
 
+  it("filters by assignee", () => {
+    expect(matchesCardFilter(card, { ...defaultCardFilter, assignee: "user" })).toBe(true);
+    expect(matchesCardFilter(card, { ...defaultCardFilter, assignee: "someone-else" })).toBe(false);
+    expect(matchesCardFilter({ ...card, assignee: null }, { ...defaultCardFilter, assignee: "user" })).toBe(false);
+  });
+
   it("combines all filter criteria", () => {
     expect(
-      matchesCardFilter(card, { text: "roadmap", priority: "high", overdueOnly: true })
+      matchesCardFilter(card, { text: "roadmap", priority: "high", overdueOnly: true, assignee: "user" })
     ).toBe(true);
     expect(
-      matchesCardFilter(card, { text: "roadmap", priority: "low", overdueOnly: true })
+      matchesCardFilter(card, { text: "roadmap", priority: "low", overdueOnly: true, assignee: "user" })
     ).toBe(false);
   });
 });

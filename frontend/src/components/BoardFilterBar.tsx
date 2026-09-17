@@ -5,9 +5,10 @@ type BoardFilterBarProps = {
   onChange: (filter: CardFilter) => void;
   matchCount: number;
   totalCount: number;
+  members?: string[];
 };
 
-export const BoardFilterBar = ({ filter, onChange, matchCount, totalCount }: BoardFilterBarProps) => {
+export const BoardFilterBar = ({ filter, onChange, matchCount, totalCount, members = [] }: BoardFilterBarProps) => {
   const isActive = isCardFilterActive(filter);
 
   return (
@@ -40,6 +41,21 @@ export const BoardFilterBar = ({ filter, onChange, matchCount, totalCount }: Boa
         />
         Overdue only
       </label>
+      {members.length > 0 ? (
+        <select
+          value={filter.assignee}
+          onChange={(event) => onChange({ ...filter, assignee: event.target.value })}
+          aria-label="Filter by assignee"
+          className="rounded-xl border border-[var(--stroke)] bg-white px-3 py-2 text-sm text-[var(--navy-dark)] outline-none focus:border-[var(--primary-blue)]"
+        >
+          <option value="all">Everyone</option>
+          {members.map((username) => (
+            <option key={username} value={username}>
+              {username}
+            </option>
+          ))}
+        </select>
+      ) : null}
       {isActive ? (
         <>
           <span className="text-xs font-semibold uppercase tracking-wide text-[var(--gray-text)]">

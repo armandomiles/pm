@@ -17,7 +17,7 @@ type CardMetaProps = {
 };
 
 export const CardMeta = ({ card }: CardMetaProps) => {
-  if (!card.dueDate && !card.priority) {
+  if (!card.dueDate && !card.priority && !card.assignee) {
     return null;
   }
 
@@ -35,6 +35,11 @@ export const CardMeta = ({ card }: CardMetaProps) => {
           className={`text-xs font-semibold ${isOverdue(card.dueDate) ? "text-red-700" : "text-[var(--gray-text)]"}`}
         >
           Due {formatDueDate(card.dueDate)}
+        </span>
+      ) : null}
+      {card.assignee ? (
+        <span className="rounded-full bg-[var(--surface)] px-2 py-0.5 text-[10px] font-semibold text-[var(--navy-dark)]">
+          @{card.assignee}
         </span>
       ) : null}
     </div>

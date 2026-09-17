@@ -381,10 +381,26 @@ The original MVP scope above is complete. `AGENTS.md`'s "Limitations" section ex
 - [x] Tests: 16 new backend tests (database level: member CRUD, access checks, cascade-on-delete for both boards and accounts; endpoint level: share/edit/rename-as-member, owner-only delete/manage-membership, cross-user isolation), 6 new frontend unit tests, 2 new Playwright e2e specs.
 - [x] Full suite re-run: 65 backend tests, 44 frontend unit tests, 10 Playwright specs — all passing. Also manually smoke-tested the full authorization matrix (stranger has no access, owner shares, member can edit/rename but not delete/manage-membership, owner revokes, member loses access) against the real Docker container, plus a visual check that the share panel and "Shared" badge match the existing design language.
 
-## Part 16+: candidate future work
+## Part 16: Card assignee
+
+### Decisions
+
+- Added a plain `assignee: str | None` field to `Card` — no cross-validation against board membership at the model level (`Card` doesn't have access to board context, and the frontend only ever offers current board members as choices in the assignee `<select>`, consistent with due date/priority getting the same light-touch treatment). No new backend endpoints needed; assignment travels through the existing full-board `PUT`.
+- `KanbanBoard` now fetches `GET /api/boards/{id}/members` alongside the board itself (parallel `useEffect`, independent failure handling - a failed members fetch just leaves the assignee UI hidden rather than blocking the board from loading) and threads the member list down through `KanbanColumn`/`KanbanCard`/`NewCardForm`/`BoardFilterBar`. All four accept `members` as an optional prop defaulting to `[]`, so local/demo mode (no `boardId`, used by several existing unit tests) is completely unaffected - the assignee UI simply doesn't render when there's no member list.
+- Assignee join `CardFilter` (search/priority/overdue-only from Part 13) as a fourth, combinable criterion, reusing the same `matchesCardFilter` predicate and `BoardFilterBar` rather than a separate mechanism.
+- Displayed as a small `@username` pill in `CardMeta`, reusing the existing neutral pill style rather than introducing avatars/initials.
+
+### Checklist
+
+- [x] Backend: `Card.assignee` field (`backend/app/database.py`).
+- [x] Frontend: `CardFilter.assignee`, assignee wired through `KanbanBoard`/`KanbanColumn`/`KanbanCard`/`NewCardForm`/`BoardFilterBar`/`CardMeta`.
+- [x] Tests: `kanban.test.ts` (assignee filter predicate), 2 new `KanbanBoard.test.tsx` tests (assign a card, filter by assignee), 1 new backend round-trip test, 1 new Playwright e2e spec.
+- [x] Full suite re-run: 66 backend tests, 47 frontend unit tests, 11 Playwright specs — all passing. Manually verified assignment persists through the real Docker backend (not just mocks).
+
+## Part 17+: candidate future work
 
 Not started. Listed so a future iteration doesn't have to rediscover scope from scratch:
 
-- Card assignee (now meaningful since boards can be shared with more than one user — assign a card to any current board member).
 - Symmetric optimistic-concurrency guard on manual board saves (see Part 11's Known gaps).
 - Real roles for board sharing (viewer vs. editor) if "everyone with access can fully edit" ever proves too permissive.
+- Validate `Card.assignee` against actual board membership server-side (currently trusted from the client, matching the light-touch validation already applied to due date/priority).

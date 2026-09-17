@@ -11,15 +11,17 @@ export type CardEdits = {
   details: string;
   dueDate: string | null;
   priority: CardPriority | null;
+  assignee: string | null;
 };
 
 type KanbanCardProps = {
   card: Card;
+  members?: string[];
   onDelete: (cardId: string) => void;
   onEdit: (cardId: string, edits: CardEdits) => void;
 };
 
-export const KanbanCard = ({ card, onDelete, onEdit }: KanbanCardProps) => {
+export const KanbanCard = ({ card, members = [], onDelete, onEdit }: KanbanCardProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: card.id });
   const [isEditing, setIsEditing] = useState(false);
@@ -27,6 +29,7 @@ export const KanbanCard = ({ card, onDelete, onEdit }: KanbanCardProps) => {
   const [details, setDetails] = useState(card.details);
   const [dueDate, setDueDate] = useState(card.dueDate ?? "");
   const [priority, setPriority] = useState<CardPriority | "">(card.priority ?? "");
+  const [assignee, setAssignee] = useState(card.assignee ?? "");
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -38,6 +41,7 @@ export const KanbanCard = ({ card, onDelete, onEdit }: KanbanCardProps) => {
     setDetails(card.details);
     setDueDate(card.dueDate ?? "");
     setPriority(card.priority ?? "");
+    setAssignee(card.assignee ?? "");
     setIsEditing(true);
   };
 
@@ -51,6 +55,7 @@ export const KanbanCard = ({ card, onDelete, onEdit }: KanbanCardProps) => {
       details: details.trim(),
       dueDate: dueDate || null,
       priority: priority || null,
+      assignee: assignee || null,
     });
     setIsEditing(false);
   };
@@ -98,6 +103,21 @@ export const KanbanCard = ({ card, onDelete, onEdit }: KanbanCardProps) => {
               <option value="high">High</option>
             </select>
           </div>
+          {members.length > 0 ? (
+            <select
+              value={assignee}
+              onChange={(event) => setAssignee(event.target.value)}
+              aria-label="Assignee"
+              className="w-full rounded-lg border border-[var(--stroke)] bg-white px-2.5 py-1.5 text-xs text-[var(--navy-dark)] outline-none focus:border-[var(--primary-blue)]"
+            >
+              <option value="">Unassigned</option>
+              {members.map((username) => (
+                <option key={username} value={username}>
+                  {username}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <div className="flex items-center gap-2">
             <button
               type="submit"

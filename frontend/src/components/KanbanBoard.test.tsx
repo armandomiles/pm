@@ -108,6 +108,57 @@ describe("KanbanBoard", () => {
     expect(screen.queryByText("Gather customer signals")).not.toBeInTheDocument();
   });
 
+  it("assigns a card to a board member", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      if (typeof url === "string" && url.endsWith("/members")) {
+        return Promise.resolve({ ok: true, json: async () => ["user", "teammate"] });
+      }
+      if (options?.method === "PUT") {
+        return Promise.resolve({ ok: true, json: async () => JSON.parse(options.body as string) });
+      }
+      return Promise.resolve({ ok: true, json: async () => initialData });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<KanbanBoard boardId="board-1" onLogout={vi.fn()} />);
+    await screen.findByDisplayValue("Backlog");
+    const column = getFirstColumn();
+
+    await userEvent.click(within(column).getByRole("button", { name: /edit align roadmap themes/i }));
+    const assigneeSelect = await within(column).findByLabelText("Assignee");
+    await userEvent.selectOptions(assigneeSelect, "teammate");
+    await userEvent.click(within(column).getByRole("button", { name: "Save" }));
+
+    expect(within(column).getByText("@teammate")).toBeInTheDocument();
+  });
+
+  it("filters cards by assignee", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      if (typeof url === "string" && url.endsWith("/members")) {
+        return Promise.resolve({ ok: true, json: async () => ["user", "teammate"] });
+      }
+      if (options?.method === "PUT") {
+        return Promise.resolve({ ok: true, json: async () => JSON.parse(options.body as string) });
+      }
+      return Promise.resolve({ ok: true, json: async () => initialData });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<KanbanBoard boardId="board-1" onLogout={vi.fn()} />);
+    await screen.findByDisplayValue("Backlog");
+    const column = getFirstColumn();
+
+    await userEvent.click(within(column).getByRole("button", { name: /edit align roadmap themes/i }));
+    const assigneeSelect = await within(column).findByLabelText("Assignee");
+    await userEvent.selectOptions(assigneeSelect, "teammate");
+    await userEvent.click(within(column).getByRole("button", { name: "Save" }));
+
+    await userEvent.selectOptions(await screen.findByLabelText("Filter by assignee"), "teammate");
+
+    expect(within(column).getByText("Align roadmap themes")).toBeInTheDocument();
+    expect(within(column).queryByText("Gather customer signals")).not.toBeInTheDocument();
+  });
+
   it("loads and saves the board through the API", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({ ok: true, json: async () => initialData })

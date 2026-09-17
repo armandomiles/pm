@@ -2,13 +2,26 @@ import { useState, type FormEvent } from "react";
 import type { CardPriority } from "@/lib/kanban";
 import { PlusIcon } from "@/components/icons";
 
-const initialFormState = { title: "", details: "", dueDate: "", priority: "" as CardPriority | "" };
-
-type NewCardFormProps = {
-  onAdd: (title: string, details: string, dueDate: string | null, priority: CardPriority | null) => void;
+const initialFormState = {
+  title: "",
+  details: "",
+  dueDate: "",
+  priority: "" as CardPriority | "",
+  assignee: "",
 };
 
-export const NewCardForm = ({ onAdd }: NewCardFormProps) => {
+type NewCardFormProps = {
+  members?: string[];
+  onAdd: (
+    title: string,
+    details: string,
+    dueDate: string | null,
+    priority: CardPriority | null,
+    assignee: string | null
+  ) => void;
+};
+
+export const NewCardForm = ({ members = [], onAdd }: NewCardFormProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [formState, setFormState] = useState(initialFormState);
 
@@ -21,7 +34,8 @@ export const NewCardForm = ({ onAdd }: NewCardFormProps) => {
       formState.title.trim(),
       formState.details.trim(),
       formState.dueDate || null,
-      formState.priority || null
+      formState.priority || null,
+      formState.assignee || null
     );
     setFormState(initialFormState);
     setIsOpen(false);
@@ -73,6 +87,23 @@ export const NewCardForm = ({ onAdd }: NewCardFormProps) => {
               <option value="high">High</option>
             </select>
           </div>
+          {members.length > 0 ? (
+            <select
+              value={formState.assignee}
+              onChange={(event) =>
+                setFormState((prev) => ({ ...prev, assignee: event.target.value }))
+              }
+              aria-label="Assignee"
+              className="w-full rounded-xl border border-[var(--stroke)] bg-white px-3 py-2 text-xs text-[var(--navy-dark)] outline-none transition focus:border-[var(--primary-blue)]"
+            >
+              <option value="">Unassigned</option>
+              {members.map((username) => (
+                <option key={username} value={username}>
+                  {username}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <div className="flex items-center gap-2">
             <button
               type="submit"

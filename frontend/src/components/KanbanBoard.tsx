@@ -41,6 +41,7 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
   const [isLoading, setIsLoading] = useState(isApiMode);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [filter, setFilter] = useState<CardFilter>(defaultCardFilter);
+  const [members, setMembers] = useState<string[]>([]);
 
   useEffect(() => {
     if (!isApiMode) {
@@ -56,6 +57,10 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
       })
       .catch(() => setSaveError("Unable to load the board."))
       .finally(() => setIsLoading(false));
+
+    fetch(`/api/boards/${boardId}/members`, { credentials: "include" })
+      .then(async (response) => (response.ok ? setMembers(await response.json()) : undefined))
+      .catch(() => undefined);
   }, [isApiMode, boardId]);
 
   const updateBoard = (nextBoard: BoardData) => {
@@ -122,14 +127,15 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
     title: string,
     details: string,
     dueDate: string | null,
-    priority: CardPriority | null
+    priority: CardPriority | null,
+    assignee: string | null
   ) => {
     const id = createId("card");
     updateBoard({
       ...board,
       cards: {
         ...board.cards,
-        [id]: { id, title, details: details || "No details yet.", dueDate, priority },
+        [id]: { id, title, details: details || "No details yet.", dueDate, priority, assignee },
       },
       columns: board.columns.map((column) =>
         column.id === columnId
@@ -230,6 +236,7 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
           onChange={setFilter}
           matchCount={matchCount}
           totalCount={allCards.length}
+          members={members}
         />
 
         <DndContext
@@ -247,6 +254,7 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
                   .map((cardId) => board.cards[cardId])
                   .filter((card) => matchesCardFilter(card, filter))}
                 totalCardCount={column.cardIds.length}
+                members={members}
                 onRename={handleRenameColumn}
                 onAddCard={handleAddCard}
                 onDeleteCard={handleDeleteCard}
