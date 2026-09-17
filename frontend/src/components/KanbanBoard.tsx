@@ -43,12 +43,10 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
   const [filter, setFilter] = useState<CardFilter>(defaultCardFilter);
   const [members, setMembers] = useState<string[]>([]);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  const [hasConflict, setHasConflict] = useState(false);
 
-  useEffect(() => {
-    if (!isApiMode) {
-      return;
-    }
-
+  const loadBoard = () => {
+    setIsLoading(true);
     fetch(`/api/boards/${boardId}`, { credentials: "include" })
       .then(async (response) => {
         if (!response.ok) {
@@ -56,13 +54,24 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
         }
         setLastUpdatedAt(response.headers?.get("X-Board-Updated-At") ?? null);
         setBoard(await response.json());
+        setSaveError(null);
+        setHasConflict(false);
       })
       .catch(() => setSaveError("Unable to load the board."))
       .finally(() => setIsLoading(false));
+  };
+
+  useEffect(() => {
+    if (!isApiMode) {
+      return;
+    }
+
+    loadBoard();
 
     fetch(`/api/boards/${boardId}/members`, { credentials: "include" })
       .then(async (response) => (response.ok ? setMembers(await response.json()) : undefined))
       .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isApiMode, boardId]);
 
   const updateBoard = (nextBoard: BoardData) => {
@@ -73,6 +82,7 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
     }
 
     setSaveError(null);
+    setHasConflict(false);
     fetch(`/api/boards/${boardId}`, {
       method: "PUT",
       headers: {
@@ -83,11 +93,9 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
       body: JSON.stringify(nextBoard),
     }).then((response) => {
       if (!response.ok) {
-        setSaveError(
-          response.status === 412
-            ? "This board changed elsewhere. Reload the page to see the latest version."
-            : "Unable to save the board."
-        );
+        const conflict = response.status === 412;
+        setHasConflict(conflict);
+        setSaveError(conflict ? "This board changed elsewhere." : "Unable to save the board.");
         setBoard(previousBoard);
         return;
       }
@@ -198,7 +206,20 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
 
       <main className="relative mx-auto flex min-h-screen max-w-[1900px] flex-col gap-6 pb-12 pl-4 pr-[360px] pt-8 sm:pl-6">
         <header className="flex flex-col gap-3 rounded-[28px] border border-[var(--stroke)] bg-white/80 p-6 shadow-[var(--shadow)] backdrop-blur lg:p-7">
-          {saveError ? <p className="text-sm font-semibold text-red-700">{saveError}</p> : null}
+          {saveError ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm font-semibold text-red-700">{saveError}</p>
+              {hasConflict ? (
+                <button
+                  type="button"
+                  onClick={loadBoard}
+                  className="rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-red-700 transition hover:bg-red-50"
+                >
+                  Reload board
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-center justify-between gap-6">
             <div className="max-w-xl">
               <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--gray-text)]">

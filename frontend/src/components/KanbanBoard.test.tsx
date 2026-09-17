@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { formatDueDate, initialData } from "@/lib/kanban";
@@ -210,10 +210,15 @@ describe("KanbanBoard", () => {
     const column = await screen.findByDisplayValue("Backlog");
     await userEvent.type(column, "!");
 
-    expect(
-      await screen.findByText("This board changed elsewhere. Reload the page to see the latest version.")
-    ).toBeInTheDocument();
+    expect(await screen.findByText("This board changed elsewhere.")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Backlog")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Reload board" }));
+
+    await waitFor(() =>
+      expect(screen.queryByText("This board changed elsewhere.")).not.toBeInTheDocument()
+    );
+    expect(screen.queryByRole("button", { name: "Reload board" })).not.toBeInTheDocument();
   });
 
   it("loads and saves the board through the API", async () => {

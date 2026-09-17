@@ -429,10 +429,27 @@ The original MVP scope above is complete. `AGENTS.md`'s "Limitations" section ex
 - [x] Tests: 1 new database-level test (valid assignee saves, invalid assignee rejected without corrupting stored data), 1 new endpoint-level test (assign while a member, reject after removal).
 - [x] Full suite re-run: 72 backend tests, 49 frontend unit tests (unaffected - no frontend changes needed) — all passing. Manually verified the exact "member removed after being assigned" race against the real Docker backend: assignment succeeds while a member, removal succeeds, the stale re-save is rejected with 400, and the previously-saved valid data is untouched.
 
-## Part 19+: candidate future work
+## Part 19: Active recovery from a save conflict in the UI
+
+### Decisions
+
+- Closed the UX half of Part 17's concurrency guard: a `412` previously just showed static text telling the user to reload the page manually. Now shows a "Reload board" button that re-fetches the board (and its member list's `updated_at` tracking) in place, without a full page reload.
+- Extracted the board-load logic (`KanbanBoard`'s mount effect) into a standalone `loadBoard` function so it can be called both on mount and from the button, rather than duplicating the fetch/parse/error-handling logic. Loading state, `saveError`, and the new `hasConflict` flag are all reset together on a successful reload.
+- `hasConflict` is a dedicated boolean set only on a `412`, not inferred from the error message string, so the "Reload board" button only appears for genuine staleness (not, say, a network error) and isn't coupled to exact message text.
+
+### Checklist
+
+- [x] Frontend: `loadBoard` extraction, `hasConflict` state, "Reload board" button in `KanbanBoard`.
+- [x] Tests: updated the existing conflict unit test to also click "Reload board" and verify the error clears; 1 new Playwright e2e spec (stale save → conflict shown → reload → board recovers).
+- [x] Full suite re-run: 72 backend tests (unaffected, no backend changes), 49 frontend unit tests, 12 Playwright specs — all passing. Final full-stack Docker rebuild and health check (`/api/health`, `/`) also passing.
+
+## Part 20+: candidate future work
 
 Not started. Listed so a future iteration doesn't have to rediscover scope from scratch:
 
 - Real roles for board sharing (viewer vs. editor) if "everyone with access can fully edit" ever proves too permissive.
-- Surface the 412 conflict more actively in the UI (e.g., a "reload" button inline with the error, or an automatic background refetch) rather than just an error message the user has to act on manually.
 - Optionally clear/flag a card's assignee when that person loses board access, instead of just leaving already-saved (formerly valid) data as-is.
+
+## Post-MVP expansion summary (Parts 11-19)
+
+Run as an autonomous `/ralph-loop` task per explicit user instruction (10 iterations). Starting from the original single-user, single-board MVP (Parts 1-10), added: real user accounts with signup/login/change-password/delete-account (Parts 11, 14); multiple boards per user with create/rename/delete (Part 11); card editing plus due date, priority, and assignee metadata (Parts 12, 16); search and filter across a board's cards (Part 13); board sharing with owner/member access control (Part 15); server-side assignee validation (Part 18); and a symmetric optimistic-concurrency guard on manual saves, with active in-UI recovery (Parts 17, 19). Test coverage grew from the original MVP's baseline to 72 backend tests, 49 frontend unit tests, and 12 Playwright e2e specs, all passing. Two real bugs were found and fixed along the way rather than only adding features: a bootstrap-account resurrection bug (Part 14) and an `ai_chat` result-discarding inconsistency (Part 18) — both caught by testing against the real Docker container rather than mocks alone, which is why that verification step was repeated for every part.

@@ -234,3 +234,35 @@ test("deletes the account after confirming the password", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "Sign in to Kanban Studio", exact: true })).toBeVisible();
 });
+
+test("recovers from a save conflict via the reload button", async ({ page }) => {
+  await mockApi(page);
+  let putCount = 0;
+  await page.route(`**/api/boards/${BOARD_ID}`, async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ status: 200, json: initialData });
+      return;
+    }
+    putCount += 1;
+    if (putCount === 1) {
+      await route.fulfill({ status: 412, json: { detail: "conflict" } });
+      return;
+    }
+    await route.fulfill({ status: 200, json: JSON.parse(route.request().postData() ?? "{}") });
+  });
+  await page.goto("/");
+  await signIn(page);
+
+  const column = page.locator('[data-testid^="column-"]').first();
+  await column.getByLabel("Column title").fill("Renamed while stale");
+
+  await expect(page.getByText("This board changed elsewhere.")).toBeVisible();
+  const reloadButton = page.getByRole("button", { name: "Reload board" });
+  await expect(reloadButton).toBeVisible();
+
+  await reloadButton.click();
+
+  await expect(page.getByText("This board changed elsewhere.")).not.toBeVisible();
+  await expect(reloadButton).not.toBeVisible();
+  await expect(column.getByLabel("Column title")).toHaveValue("Backlog");
+});
