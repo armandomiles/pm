@@ -8,10 +8,15 @@ _SCRYPT_P = 1
 _KEY_LENGTH = 32
 
 
+def _derive_key(password: str, salt: bytes) -> bytes:
+    return hashlib.scrypt(
+        password.encode("utf-8"), salt=salt, n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P, dklen=_KEY_LENGTH
+    )
+
+
 def hash_password(password: str) -> str:
     salt = os.urandom(16)
-    derived = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P, dklen=_KEY_LENGTH)
-    return f"{salt.hex()}${derived.hex()}"
+    return f"{salt.hex()}${_derive_key(password, salt).hex()}"
 
 
 def verify_password(password: str, password_hash: str) -> bool:
@@ -20,5 +25,4 @@ def verify_password(password: str, password_hash: str) -> bool:
         salt = bytes.fromhex(salt_hex)
     except ValueError:
         return False
-    derived = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P, dklen=_KEY_LENGTH)
-    return hmac.compare_digest(derived.hex(), digest_hex)
+    return hmac.compare_digest(_derive_key(password, salt).hex(), digest_hex)

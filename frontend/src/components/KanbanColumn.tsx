@@ -45,21 +45,19 @@ export const KanbanColumn = ({
       )}
       data-testid={`column-${column.id}`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="w-full">
-          <div className="flex items-center gap-3">
-            <div className="h-2 w-10 rounded-full bg-[var(--accent-yellow)]" />
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gray-text)]">
-              {isFiltered ? `${cards.length} of ${totalCardCount} cards` : `${cards.length} cards`}
-            </span>
-          </div>
-          <input
-            value={column.title}
-            onChange={(event) => onRename(column.id, event.target.value)}
-            className="mt-3 w-full bg-transparent font-display text-lg font-semibold text-[var(--navy-dark)] outline-none"
-            aria-label="Column title"
-          />
+      <div>
+        <div className="flex items-center gap-3">
+          <div className="h-2 w-10 rounded-full bg-[var(--accent-yellow)]" />
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gray-text)]">
+            {isFiltered ? `${cards.length} of ${totalCardCount} cards` : `${cards.length} cards`}
+          </span>
         </div>
+        <input
+          value={column.title}
+          onChange={(event) => onRename(column.id, event.target.value)}
+          className="mt-3 w-full bg-transparent font-display text-lg font-semibold text-[var(--navy-dark)] outline-none"
+          aria-label="Column title"
+        />
       </div>
       <div className="mt-4 flex flex-1 flex-col gap-3">
         <SortableContext items={cards.map((card) => card.id)} strategy={verticalListSortingStrategy}>

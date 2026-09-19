@@ -1,12 +1,12 @@
-import { formatDueDate, isOverdue, type Card } from "@/lib/kanban";
+import { formatDueDate, isOverdue, type Card, type CardPriority } from "@/lib/kanban";
 
-const PRIORITY_STYLES: Record<string, string> = {
+const PRIORITY_STYLES: Record<CardPriority, string> = {
   high: "bg-[var(--secondary-purple)] text-white",
   medium: "bg-[var(--accent-yellow)] text-[var(--navy-dark)]",
   low: "bg-[var(--surface)] text-[var(--gray-text)]",
 };
 
-const PRIORITY_LABELS: Record<string, string> = {
+const PRIORITY_LABELS: Record<CardPriority, string> = {
   high: "High",
   medium: "Medium",
   low: "Low",

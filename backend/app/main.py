@@ -214,7 +214,7 @@ def delete_account(
 
     delete_user_account(user_id)
     for token in [token for token, owner in active_sessions.items() if owner == user_id]:
-        active_sessions.pop(token, None)
+        del active_sessions[token]
     response.delete_cookie("pm_session")
     return {"status": "ok"}
 

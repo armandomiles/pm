@@ -14,6 +14,7 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isSignup = mode === "signup";
+  const actionLabel = isSignup ? "Create account" : "Sign in";
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -98,7 +99,7 @@ export const LoginForm = ({ onLogin }: LoginFormProps) => {
           disabled={isSubmitting}
           className="mt-6 w-full rounded-full bg-[var(--secondary-purple)] px-4 py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-wait disabled:opacity-60"
         >
-          {isSubmitting ? "Please wait..." : isSignup ? "Create account" : "Sign in"}
+          {isSubmitting ? "Please wait..." : actionLabel}
         </button>
         <button
           type="button"

@@ -19,7 +19,8 @@ type BoardListProps = {
 };
 
 export const BoardList = ({ currentUsername, onSelectBoard, onLogout }: BoardListProps) => {
-  const [boards, setBoards] = useState<BoardSummary[] | null>(null);
+  const [boards, setBoards] = useState<BoardSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newBoardName, setNewBoardName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
@@ -36,7 +37,8 @@ export const BoardList = ({ currentUsername, onSelectBoard, onLogout }: BoardLis
         }
         setBoards(await response.json());
       })
-      .catch(() => setError("Unable to load boards."));
+      .catch(() => setError("Unable to load boards."))
+      .finally(() => setIsLoading(false));
   }, []);
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
@@ -59,7 +61,7 @@ export const BoardList = ({ currentUsername, onSelectBoard, onLogout }: BoardLis
       }
       const created: BoardSummary = await response.json();
       setNewBoardName("");
-      setBoards((prev) => [...(prev ?? []), created]);
+      setBoards((prev) => [...prev, created]);
     } catch {
       setError("Unable to create the board.");
     } finally {
@@ -70,14 +72,14 @@ export const BoardList = ({ currentUsername, onSelectBoard, onLogout }: BoardLis
   const handleDelete = async (boardId: string) => {
     setError(null);
     const previous = boards;
-    setBoards((prev) => (prev ?? []).filter((board) => board.id !== boardId));
+    setBoards((prev) => prev.filter((board) => board.id !== boardId));
     const response = await fetch(`/api/boards/${boardId}`, {
       method: "DELETE",
       credentials: "include",
     });
     if (!response.ok) {
       setError("Unable to delete the board.");
-      setBoards(previous ?? null);
+      setBoards(previous);
     }
   };
 
@@ -94,7 +96,7 @@ export const BoardList = ({ currentUsername, onSelectBoard, onLogout }: BoardLis
     }
     setError(null);
     const previous = boards;
-    setBoards((prev) => (prev ?? []).map((board) => (board.id === boardId ? { ...board, name } : board)));
+    setBoards((prev) => prev.map((board) => (board.id === boardId ? { ...board, name } : board)));
     setEditingId(null);
     const response = await fetch(`/api/boards/${boardId}`, {
       method: "PATCH",
@@ -104,11 +106,11 @@ export const BoardList = ({ currentUsername, onSelectBoard, onLogout }: BoardLis
     });
     if (!response.ok) {
       setError("Unable to rename the board.");
-      setBoards(previous ?? null);
+      setBoards(previous);
     }
   };
 
-  if (boards === null && !error) {
+  if (isLoading) {
     return (
       <main className="flex min-h-screen items-center justify-center text-sm text-[var(--gray-text)]">
         Loading boards...
@@ -150,7 +152,7 @@ export const BoardList = ({ currentUsername, onSelectBoard, onLogout }: BoardLis
       {error ? <p className="text-sm font-semibold text-red-700">{error}</p> : null}
 
       <ul className="flex flex-col gap-3">
-        {(boards ?? []).map((board) => (
+        {boards.map((board) => (
           <li
             key={board.id}
             data-testid={`board-${board.id}`}
@@ -230,7 +232,7 @@ export const BoardList = ({ currentUsername, onSelectBoard, onLogout }: BoardLis
             )}
           </li>
         ))}
-        {(boards ?? []).length === 0 ? (
+        {boards.length === 0 ? (
           <li className="rounded-2xl border border-dashed border-[var(--stroke)] px-5 py-6 text-center text-sm text-[var(--gray-text)]">
             No boards yet. Create your first one below.
           </li>

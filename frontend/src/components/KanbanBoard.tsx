@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -35,7 +35,7 @@ type KanbanBoardProps = {
 };
 
 export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoardProps) => {
-  const isApiMode = Boolean(onLogout);
+  const isApiMode = Boolean(boardId);
   const [board, setBoard] = useState<BoardData>(() => initialData);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(isApiMode);
@@ -112,8 +112,6 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
     })
   );
 
-  const cardsById = useMemo(() => board.cards, [board.cards]);
-
   const handleDragStart = (event: DragStartEvent) => {
     setActiveCardId(event.active.id as string);
   };
@@ -176,22 +174,19 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
 
   const handleDeleteCard = (columnId: string, cardId: string) => {
     updateBoard({
-        ...board,
-        cards: Object.fromEntries(
-          Object.entries(board.cards).filter(([id]) => id !== cardId)
-        ),
-        columns: board.columns.map((column) =>
-          column.id === columnId
-            ? {
-                ...column,
-                cardIds: column.cardIds.filter((id) => id !== cardId),
-              }
-            : column
-        ),
+      ...board,
+      cards: Object.fromEntries(
+        Object.entries(board.cards).filter(([id]) => id !== cardId)
+      ),
+      columns: board.columns.map((column) =>
+        column.id === columnId
+          ? { ...column, cardIds: column.cardIds.filter((id) => id !== cardId) }
+          : column
+      ),
     });
   };
 
-  const activeCard = activeCardId ? cardsById[activeCardId] : null;
+  const activeCard = activeCardId ? board.cards[activeCardId] : null;
   const allCards = Object.values(board.cards);
   const matchCount = allCards.filter((card) => matchesCardFilter(card, filter)).length;
 
@@ -303,7 +298,7 @@ export const KanbanBoard = ({ boardId, boardName, onLogout, onBack }: KanbanBoar
           </DragOverlay>
         </DndContext>
       </main>
-      {onLogout ? <ChatSidebar boardId={boardId as string} onBoardUpdate={updateBoard} /> : null}
+      {boardId ? <ChatSidebar boardId={boardId} onBoardUpdate={updateBoard} /> : null}
     </div>
   );
 };

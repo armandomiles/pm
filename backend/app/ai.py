@@ -24,10 +24,11 @@ def openrouter_chat(
     if not api_key:
         raise AIConfigurationError("OPENROUTER_API_KEY is not configured")
 
+    payload: dict[str, Any] = {"model": MODEL, "messages": messages}
+    if response_format is not None:
+        payload["response_format"] = response_format
+
     try:
-        payload: dict[str, Any] = {"model": MODEL, "messages": messages}
-        if response_format is not None:
-            payload["response_format"] = response_format
         response = httpx.post(
             OPENROUTER_URL,
             headers={

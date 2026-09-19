@@ -14,6 +14,14 @@ export type CardEdits = {
   assignee: string | null;
 };
 
+const formStateFor = (card: Card) => ({
+  title: card.title,
+  details: card.details,
+  dueDate: card.dueDate ?? "",
+  priority: (card.priority ?? "") as CardPriority | "",
+  assignee: card.assignee ?? "",
+});
+
 type KanbanCardProps = {
   card: Card;
   members?: string[];
@@ -25,11 +33,7 @@ export const KanbanCard = ({ card, members = [], onDelete, onEdit }: KanbanCardP
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: card.id });
   const [isEditing, setIsEditing] = useState(false);
-  const [title, setTitle] = useState(card.title);
-  const [details, setDetails] = useState(card.details);
-  const [dueDate, setDueDate] = useState(card.dueDate ?? "");
-  const [priority, setPriority] = useState<CardPriority | "">(card.priority ?? "");
-  const [assignee, setAssignee] = useState(card.assignee ?? "");
+  const [form, setForm] = useState(() => formStateFor(card));
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -37,25 +41,21 @@ export const KanbanCard = ({ card, members = [], onDelete, onEdit }: KanbanCardP
   };
 
   const startEditing = () => {
-    setTitle(card.title);
-    setDetails(card.details);
-    setDueDate(card.dueDate ?? "");
-    setPriority(card.priority ?? "");
-    setAssignee(card.assignee ?? "");
+    setForm(formStateFor(card));
     setIsEditing(true);
   };
 
   const handleSave = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!title.trim()) {
+    if (!form.title.trim()) {
       return;
     }
     onEdit(card.id, {
-      title: title.trim(),
-      details: details.trim(),
-      dueDate: dueDate || null,
-      priority: priority || null,
-      assignee: assignee || null,
+      title: form.title.trim(),
+      details: form.details.trim(),
+      dueDate: form.dueDate || null,
+      priority: form.priority || null,
+      assignee: form.assignee || null,
     });
     setIsEditing(false);
   };
@@ -70,15 +70,15 @@ export const KanbanCard = ({ card, members = [], onDelete, onEdit }: KanbanCardP
       >
         <form onSubmit={handleSave} className="space-y-2.5">
           <input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
+            value={form.title}
+            onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
             aria-label="Card title"
             className="w-full rounded-lg border border-[var(--stroke)] bg-white px-2.5 py-1.5 text-sm font-semibold text-[var(--navy-dark)] outline-none focus:border-[var(--primary-blue)]"
             required
           />
           <textarea
-            value={details}
-            onChange={(event) => setDetails(event.target.value)}
+            value={form.details}
+            onChange={(event) => setForm((prev) => ({ ...prev, details: event.target.value }))}
             aria-label="Card details"
             rows={3}
             className="w-full resize-none rounded-lg border border-[var(--stroke)] bg-white px-2.5 py-1.5 text-sm text-[var(--gray-text)] outline-none focus:border-[var(--primary-blue)]"
@@ -86,14 +86,16 @@ export const KanbanCard = ({ card, members = [], onDelete, onEdit }: KanbanCardP
           <div className="flex items-center gap-2">
             <input
               type="date"
-              value={dueDate}
-              onChange={(event) => setDueDate(event.target.value)}
+              value={form.dueDate}
+              onChange={(event) => setForm((prev) => ({ ...prev, dueDate: event.target.value }))}
               aria-label="Due date"
               className="flex-1 rounded-lg border border-[var(--stroke)] bg-white px-2.5 py-1.5 text-xs text-[var(--navy-dark)] outline-none focus:border-[var(--primary-blue)]"
             />
             <select
-              value={priority}
-              onChange={(event) => setPriority(event.target.value as CardPriority | "")}
+              value={form.priority}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, priority: event.target.value as CardPriority | "" }))
+              }
               aria-label="Priority"
               className="rounded-lg border border-[var(--stroke)] bg-white px-2.5 py-1.5 text-xs text-[var(--navy-dark)] outline-none focus:border-[var(--primary-blue)]"
             >
@@ -105,8 +107,8 @@ export const KanbanCard = ({ card, members = [], onDelete, onEdit }: KanbanCardP
           </div>
           {members.length > 0 ? (
             <select
-              value={assignee}
-              onChange={(event) => setAssignee(event.target.value)}
+              value={form.assignee}
+              onChange={(event) => setForm((prev) => ({ ...prev, assignee: event.target.value }))}
               aria-label="Assignee"
               className="w-full rounded-lg border border-[var(--stroke)] bg-white px-2.5 py-1.5 text-xs text-[var(--navy-dark)] outline-none focus:border-[var(--primary-blue)]"
             >

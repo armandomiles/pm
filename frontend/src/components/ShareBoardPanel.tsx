@@ -9,7 +9,7 @@ type ShareBoardPanelProps = {
 };
 
 export const ShareBoardPanel = ({ boardId, ownerUsername }: ShareBoardPanelProps) => {
-  const [members, setMembers] = useState<string[] | null>(null);
+  const [members, setMembers] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [newUsername, setNewUsername] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -18,7 +18,7 @@ export const ShareBoardPanel = ({ boardId, ownerUsername }: ShareBoardPanelProps
     fetch(`/api/boards/${boardId}/members`, { credentials: "include" })
       .then(async (response) => {
         if (!response.ok) {
-          throw new Error();
+          throw new Error("Unable to load who has access.");
         }
         setMembers(await response.json());
       })
@@ -46,8 +46,8 @@ export const ShareBoardPanel = ({ boardId, ownerUsername }: ShareBoardPanelProps
       }
       setMembers(await response.json());
       setNewUsername("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to add that person.");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Unable to add that person.");
     } finally {
       setIsAdding(false);
     }
@@ -56,14 +56,14 @@ export const ShareBoardPanel = ({ boardId, ownerUsername }: ShareBoardPanelProps
   const handleRemove = async (username: string) => {
     setError(null);
     const previous = members;
-    setMembers((prev) => (prev ?? []).filter((name) => name !== username));
+    setMembers((prev) => prev.filter((name) => name !== username));
     const response = await fetch(`/api/boards/${boardId}/members/${username}`, {
       method: "DELETE",
       credentials: "include",
     });
     if (!response.ok) {
       setError("Unable to remove that person.");
-      setMembers(previous ?? null);
+      setMembers(previous);
     }
   };
 
@@ -72,7 +72,7 @@ export const ShareBoardPanel = ({ boardId, ownerUsername }: ShareBoardPanelProps
       <p className="text-xs font-semibold uppercase tracking-wide text-[var(--gray-text)]">Shared with</p>
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
       <ul className="space-y-1.5">
-        {(members ?? []).map((username) => (
+        {members.map((username) => (
           <li key={username} className="flex items-center justify-between gap-2 text-sm text-[var(--navy-dark)]">
             <span>
               {username}

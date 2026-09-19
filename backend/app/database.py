@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, ValidationError, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from app.security import hash_password
 
@@ -180,10 +180,7 @@ def board_to_json(board: Board) -> str:
 
 
 def board_from_json(value: str) -> Board:
-    try:
-        return Board.model_validate_json(value)
-    except (ValidationError, ValueError) as error:
-        raise ValueError("Stored board snapshot is invalid") from error
+    return Board.model_validate_json(value)
 
 
 def create_user(username: str, password: str) -> User:
@@ -227,12 +224,10 @@ def update_user_password(username: str, new_password: str) -> bool:
 def delete_user_account(username: str) -> bool:
     initialize_database()
     with connect() as connection:
-        owned_board_ids = [
-            row["id"]
-            for row in connection.execute("SELECT id FROM boards WHERE owner_id = ?", (username,)).fetchall()
-        ]
-        for board_id in owned_board_ids:
-            connection.execute("DELETE FROM board_members WHERE board_id = ?", (board_id,))
+        connection.execute(
+            "DELETE FROM board_members WHERE board_id IN (SELECT id FROM boards WHERE owner_id = ?)",
+            (username,),
+        )
         connection.execute("DELETE FROM boards WHERE owner_id = ?", (username,))
         connection.execute("DELETE FROM board_members WHERE user_id = ?", (username,))
         cursor = connection.execute("DELETE FROM users WHERE id = ?", (username,))
@@ -258,10 +253,8 @@ def _board_access(connection: sqlite3.Connection, board_id: str, user_id: str) -
 def is_board_owner(board_id: str, user_id: str) -> bool:
     initialize_database()
     with connect() as connection:
-        row = connection.execute(
-            "SELECT 1 FROM boards WHERE id = ? AND owner_id = ?", (board_id, user_id)
-        ).fetchone()
-    return row is not None
+        _, owner_id = _board_access(connection, board_id, user_id)
+    return owner_id == user_id
 
 
 def list_board_members(board_id: str) -> list[str]:
@@ -347,7 +340,7 @@ def get_board_updated_at(board_id: str, user_id: str) -> str | None:
         if not has_access:
             return None
         row = connection.execute("SELECT updated_at FROM boards WHERE id = ?", (board_id,)).fetchone()
-    return row["updated_at"] if row is not None else None
+    return row["updated_at"]
 
 
 SaveBoardResult = Literal["saved", "not_found", "conflict", "invalid_assignee"]
@@ -375,7 +368,7 @@ def save_board_content(
             return "not_found", None
         if if_unmodified_since is not None:
             row = connection.execute("SELECT updated_at FROM boards WHERE id = ?", (board_id,)).fetchone()
-            if row is not None and row["updated_at"] > if_unmodified_since:
+            if row["updated_at"] > if_unmodified_since:
                 return "conflict", None
         member_rows = connection.execute(
             "SELECT user_id FROM board_members WHERE board_id = ?", (board_id,)
@@ -384,12 +377,10 @@ def save_board_content(
         for card in board.cards.values():
             if card.assignee is not None and card.assignee not in valid_assignees:
                 return "invalid_assignee", None
-        cursor = connection.execute(
+        connection.execute(
             "UPDATE boards SET board_json = ?, updated_at = ? WHERE id = ?",
             (board_to_json(board), now, board_id),
         )
-        if cursor.rowcount == 0:
-            return "not_found", None
     return "saved", now
 
 
@@ -400,12 +391,10 @@ def rename_board(board_id: str, user_id: str, name: str) -> BoardSummary | None:
         has_access, owner_id = _board_access(connection, board_id, user_id)
         if not has_access:
             return None
-        cursor = connection.execute(
+        connection.execute(
             "UPDATE boards SET name = ?, updated_at = ? WHERE id = ?",
             (name, now, board_id),
         )
-        if cursor.rowcount == 0:
-            return None
     return BoardSummary(id=board_id, name=name, updated_at=now, is_owner=(owner_id == user_id))
 
 
